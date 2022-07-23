@@ -2,7 +2,7 @@
 
 > Spellcheck markdown files in your github action
 
-Uses [hunspell](http://hunspell.github.io/)'s code (complied to WASM) and english dictionary.
+Uses [hunspell](http://hunspell.github.io/)'s code (complied to WASM) and English dictionary.
 
 Only tests markdown files specified in a glob pattern and ignores any code fragments in markdown.
 
