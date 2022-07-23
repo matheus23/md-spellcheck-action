@@ -3,7 +3,7 @@
 </p>
 
 
-mispelled
+weiird
 
 # Create a JavaScript Action using TypeScript
 

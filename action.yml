@@ -5,9 +5,9 @@ inputs:
   files-to-check:
     required: true
     description: 'Newline-separated globs of files to check'
-  custom-words:
+  words-to-ignore-file:
     required: false
-    description: 'Any words to ignore during spellchecking'
+    description: 'A path to a text file with newline-separated custom words to ignore when checking'
     default: ''
 runs:
   using: 'node16'

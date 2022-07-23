@@ -8,12 +8,30 @@ async function run(): Promise<void> {
     const spell = await initialise()
 
     const globs = await glob.create(core.getInput('files-to-check'))
+    const ignoreFile = core.getInput('words-to-ignore-file')
+
+    const ignores = new Set<string>()
+
+    if (ignoreFile !== '') {
+      const ignoreEntries = readFileSync(ignoreFile, {encoding: 'utf8'}).split(
+        '\n'
+      )
+
+      for (const entry of ignoreEntries) {
+        ignores.add(entry.trim().toLowerCase())
+      }
+    }
 
     for await (const file of globs.globGenerator()) {
       const contents = readFileSync(file, {encoding: 'utf8'})
 
       let hasMisspelled = false
+
       for await (const result of spell.check(contents)) {
+        if (ignores.has(result.word.toLowerCase())) {
+          continue
+        }
+
         hasMisspelled = true
 
         const suggestions = result.suggestions.map(s => `"${s}"`).join(', ')
