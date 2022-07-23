@@ -2,8 +2,11 @@ name: 'md-spellcheck-action'
 description: 'Spell-check english markdown files, ignoring code'
 author: 'Philipp Krüger (matheus23) philipp.krueger1@gmail.com'
 inputs:
-  custom-words: # change this
+  files-to-check:
     required: true
+    description: 'Newline-separated globs of files to check'
+  custom-words:
+    required: false
     description: 'Any words to ignore during spellchecking'
     default: []
 runs:

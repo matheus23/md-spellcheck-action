@@ -11,6 +11,7 @@ export interface Misspelled {
 }
 
 export interface API {
+  // eslint-disable-next-line no-undef
   check(contents: string): AsyncIterable<Misspelled>
 }
 
