@@ -1,6 +1,6 @@
 # md-spellcheck-action
 
-> Spellcheck markdown files in your github action
+> Spellcheck markdown files in your GitHub action
 
 Uses [hunspell](http://hunspell.github.io/)'s code (complied to WASM) and English dictionary.
 
