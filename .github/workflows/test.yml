@@ -22,3 +22,4 @@ jobs:
       - uses: ./
         with:
           files-to-check: "*.md"
+          words-to-ignore-file: ./words-to-ignore.txt

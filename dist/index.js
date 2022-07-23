@@ -52,6 +52,14 @@ function run() {
         try {
             const spell = yield (0, spellcheck_1.initialise)();
             const globs = yield glob.create(core.getInput('files-to-check'));
+            const ignoreFile = core.getInput('words-to-ignore-file');
+            const ignores = new Set();
+            if (ignoreFile !== '') {
+                const ignoreEntries = (0, fs_1.readFileSync)(ignoreFile, { encoding: 'utf8' }).split('\n');
+                for (const entry of ignoreEntries) {
+                    ignores.add(entry.trim().toLowerCase());
+                }
+            }
             try {
                 for (var _c = __asyncValues(globs.globGenerator()), _d; _d = yield _c.next(), !_d.done;) {
                     const file = _d.value;
@@ -60,6 +68,9 @@ function run() {
                     try {
                         for (var _e = (e_2 = void 0, __asyncValues(spell.check(contents))), _f; _f = yield _e.next(), !_f.done;) {
                             const result = _f.value;
+                            if (ignores.has(result.word.toLowerCase())) {
+                                continue;
+                            }
                             hasMisspelled = true;
                             const suggestions = result.suggestions.map(s => `"${s}"`).join(', ');
                             core.error(`Misspelled word "${result.word}".\nSuggestions: ${suggestions}`, {
