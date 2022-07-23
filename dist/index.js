@@ -55,20 +55,36 @@ function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             const spell = yield (0, spellcheck_1.initialise)();
-            const globs = yield glob.create(core.getInput('files-to-check'));
-            const ignoreFile = core.getInput('words-to-ignore-file');
+            const globPattern = core.getInput('files-to-check');
+            const ignoreFile = core.getInput('words-to-ignore-file').trim();
+            if (globPattern == null) {
+                core.setFailed(`Missing configuration field "files-to-check". Please edit your github action workflow.`);
+                return;
+            }
+            const globs = yield glob.create(globPattern);
             const ignores = new Set();
+            let ignoreMsg = () => 'If you want to ignore this message, configure an ignore file for md-spellcheck-action.';
             if (ignoreFile !== '') {
+                ignoreMsg = word => `If you want to ignore this message, add ${word} to the ignore file at ${ignoreFile}`;
                 const ignoreEntries = (0, fs_1.readFileSync)(ignoreFile, { encoding: 'utf8' }).split('\n');
                 for (const entry of ignoreEntries) {
                     ignores.add(entry.trim().toLowerCase());
                 }
             }
-            core.info(`Ignoring words: ${Array.from(ignores)}`);
+            if (ignores.size > 0) {
+                core.info(`Ignoring words: ${Array.from(ignores)}`);
+            }
+            else {
+                core.info(`No words to ignore configured: ${ignoreFile === ''
+                    ? 'No ignore file configured.'
+                    : 'No words in the ignore file.'}`);
+            }
             let hasMisspelled = false;
+            let checkedFiles = false;
             try {
                 for (var _c = __asyncValues(globs.globGenerator()), _d; _d = yield _c.next(), !_d.done;) {
                     const file = _d.value;
+                    checkedFiles = true;
                     const contents = (0, fs_1.readFileSync)(file, { encoding: 'utf8' });
                     try {
                         for (var _e = (e_2 = void 0, __asyncValues(spell.check(contents))), _f; _f = yield _e.next(), !_f.done;) {
@@ -78,7 +94,7 @@ function run() {
                             }
                             hasMisspelled = true;
                             const suggestions = result.suggestions.map(s => `"${s}"`).join(', ');
-                            core.error(`Misspelled word "${result.word}".\nSuggestions: ${suggestions}`, {
+                            core.error(`Misspelled word "${result.word}".\nSuggested alternatives: ${suggestions}\n${ignoreMsg(result.word)}`, {
                                 title: 'Misspelled word',
                                 file,
                                 startLine: result.position.start.line,
@@ -95,7 +111,7 @@ function run() {
                         }
                         finally { if (e_2) throw e_2.error; }
                     }
-                    core.info(`Spellchecked ${file}`);
+                    core.info(`Spellchecked ${file}.`);
                 }
             }
             catch (e_1_1) { e_1 = { error: e_1_1 }; }
@@ -107,6 +123,9 @@ function run() {
             }
             if (hasMisspelled) {
                 core.setFailed('Misspelled word(s)');
+            }
+            else if (!checkedFiles) {
+                core.setFailed(`Couldn't find any files matching the glob pattern ${globPattern}`);
             }
         }
         catch (error) {
