@@ -22,10 +22,12 @@ async function run(): Promise<void> {
       }
     }
 
+    core.info(`Ignoring words: ${Array.from(ignores)}`)
+
+    let hasMisspelled = false
+
     for await (const file of globs.globGenerator()) {
       const contents = readFileSync(file, {encoding: 'utf8'})
-
-      let hasMisspelled = false
 
       for await (const result of spell.check(contents)) {
         if (ignores.has(result.word.toLowerCase())) {
@@ -48,9 +50,11 @@ async function run(): Promise<void> {
         )
       }
 
-      if (hasMisspelled) {
-        core.setFailed('Misspelled word(s)')
-      }
+      core.info(`Spellchecked ${file}`)
+    }
+
+    if (hasMisspelled) {
+      core.setFailed('Misspelled word(s)')
     }
   } catch (error) {
     if (error instanceof Error) core.setFailed(error.message)

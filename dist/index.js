@@ -64,11 +64,12 @@ function run() {
                     ignores.add(entry.trim().toLowerCase());
                 }
             }
+            core.info(`Ignoring words: ${Array.from(ignores)}`);
+            let hasMisspelled = false;
             try {
                 for (var _c = __asyncValues(globs.globGenerator()), _d; _d = yield _c.next(), !_d.done;) {
                     const file = _d.value;
                     const contents = (0, fs_1.readFileSync)(file, { encoding: 'utf8' });
-                    let hasMisspelled = false;
                     try {
                         for (var _e = (e_2 = void 0, __asyncValues(spell.check(contents))), _f; _f = yield _e.next(), !_f.done;) {
                             const result = _f.value;
@@ -94,9 +95,7 @@ function run() {
                         }
                         finally { if (e_2) throw e_2.error; }
                     }
-                    if (hasMisspelled) {
-                        core.setFailed('Misspelled word(s)');
-                    }
+                    core.info(`Spellchecked ${file}`);
                 }
             }
             catch (e_1_1) { e_1 = { error: e_1_1 }; }
@@ -105,6 +104,9 @@ function run() {
                     if (_d && !_d.done && (_a = _c.return)) yield _a.call(_c);
                 }
                 finally { if (e_1) throw e_1.error; }
+            }
+            if (hasMisspelled) {
+                core.setFailed('Misspelled word(s)');
             }
         }
         catch (error) {
