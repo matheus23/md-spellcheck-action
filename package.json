@@ -25,7 +25,11 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@actions/core": "^1.6.0"
+    "@actions/core": "^1.6.0",
+    "@yozora/parser-gfm-ex": "^2.0.2-alpha.0",
+    "dictionary-en": "^3.2.0",
+    "fast-check": "^3.1.0",
+    "hunspell-asm": "^4.0.2"
   },
   "devDependencies": {
     "@types/node": "^16.10.5",

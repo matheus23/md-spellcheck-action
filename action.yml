@@ -1,11 +1,11 @@
-name: 'Your name here'
-description: 'Provide a description here'
-author: 'Your name or organization here'
+name: 'md-spellcheck-action'
+description: 'Spell-check english markdown files, ignoring code'
+author: 'Philipp Krüger (matheus23) philipp.krueger1@gmail.com'
 inputs:
-  milliseconds: # change this
+  custom-words: # change this
     required: true
-    description: 'input description here'
-    default: 'default value if applicable'
+    description: 'Any words to ignore during spellchecking'
+    default: []
 runs:
   using: 'node16'
   main: 'dist/index.js'
