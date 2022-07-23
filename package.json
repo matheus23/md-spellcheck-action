@@ -1,8 +1,8 @@
 {
-  "name": "typescript-action",
-  "version": "0.0.0",
+  "name": "md-spellcheck-action",
+  "version": "1.0.0",
   "private": true,
-  "description": "TypeScript template action",
+  "description": "Spellcheck markdown files in your github action",
   "main": "lib/main.js",
   "scripts": {
     "build": "tsc",
@@ -15,17 +15,18 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/actions/typescript-action.git"
+    "url": "git+https://github.com/matheus23/md-spellcheck-action.git"
   },
   "keywords": [
     "actions",
     "node",
     "setup"
   ],
-  "author": "",
+  "author": "Philipp Krüger @matheus23, philipp.krueger1@gmail.com",
   "license": "MIT",
   "dependencies": {
     "@actions/core": "^1.6.0",
+    "@actions/glob": "^0.3.0",
     "@yozora/parser-gfm-ex": "^2.0.2-alpha.0",
     "dictionary-en": "^3.2.0",
     "fast-check": "^3.1.0",

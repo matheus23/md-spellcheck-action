@@ -1,29 +1,25 @@
 // import * as core from '@actions/core'
-import type {Literal, Node, Parent, Position} from '@yozora/ast'
+import type {Literal, Node, Parent, Point, Position} from '@yozora/ast'
 import {GfmExParser} from '@yozora/parser-gfm-ex'
 import dictionaryEn from 'dictionary-en'
 import {loadModule} from 'hunspell-asm'
 
-export interface CheckResult {
-  position?: Position
+export interface Misspelled {
+  position: Position
   word: string
   suggestions: string[]
 }
 
 export interface API {
-  check(contents: string): AsyncIterable<CheckResult>
+  check(contents: string): AsyncIterable<Misspelled>
 }
 
 export async function initialise(): Promise<API> {
-  // const before = performance.now()
-
   const {aff, dic} = await getDictionaryEN()
   const hunspellFactory = await loadModule()
   const affPath = hunspellFactory.mountBuffer(aff)
   const dicPath = hunspellFactory.mountBuffer(dic)
   const hunspell = hunspellFactory.create(affPath, dicPath)
-
-  // core.debug(`time: ${performance.now() - before} ms`)
 
   return {
     check: async function* check(contents: string) {
@@ -41,11 +37,13 @@ export async function initialise(): Promise<API> {
 
         for (const child of node.children) {
           if (isText(child)) {
-            const words = child.value.split(/\s+/).filter(w => w.length !== 0)
-            for (const word of words) {
+            for (const {word, position} of splitWords(child.value)) {
               if (!hunspell.spell(word)) {
+                if (child.position == null) {
+                  throw new Error('Missing position spans')
+                }
                 yield {
-                  position: child.position,
+                  position: positionFromPoint(child.position.start, position),
                   word,
                   suggestions: hunspell.suggest(word)
                 }
@@ -118,6 +116,35 @@ export function splitWords(str: string): {word: string; position: Position}[] {
   return pieces
 }
 
+function positionFromPoint(point: Point, position: Position): Position {
+  const line0 = point.line - 1
+  const column0 = point.column - 1
+
+  return {
+    start: {
+      line: position.start.line + line0,
+      column:
+        position.start.line === 1
+          ? position.start.column + column0
+          : position.start.column,
+      offset:
+        position.start.offset != null && point.offset != null
+          ? position.start.offset + point.offset
+          : undefined
+    },
+    end: {
+      line: position.end.line + line0,
+      column:
+        position.end.line === 1
+          ? position.end.column + column0
+          : position.end.column,
+      offset:
+        position.end.offset != null && point.offset != null
+          ? position.end.offset + point.offset
+          : undefined
+    }
+  }
+}
 
 async function getDictionaryEN(): Promise<{aff: Buffer; dic: Buffer}> {
   return new Promise((resolve, reject) => {

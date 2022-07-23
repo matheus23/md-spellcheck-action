@@ -1,22 +1,21 @@
 import * as core from '@actions/core'
+import * as glob from '@actions/glob'
 import {initialise} from './spellcheck'
 import {readFileSync} from 'fs'
 
 async function run(): Promise<void> {
   try {
-    // const ms: string = core.getInput('milliseconds')
-
     const spell = await initialise()
 
-    const file = './README.md'
-    const contents = readFileSync(file, {encoding: 'utf8'})
+    const globs = await glob.create(core.getInput('files-to-check'))
 
-    let failed = false
-    for await (const result of spell.check(contents)) {
-      failed = true
-      if (result.position == null) {
-        throw new Error('Missing position spans')
-      } else {
+    for await (const file of globs.globGenerator()) {
+      const contents = readFileSync(file, {encoding: 'utf8'})
+
+      let hasMisspelled = false
+      for await (const result of spell.check(contents)) {
+        hasMisspelled = true
+
         const suggestions = result.suggestions.map(s => `"${s}"`).join(', ')
         core.error(
           `Misspelled word "${result.word}".\nSuggestions: ${suggestions}`,
@@ -30,10 +29,10 @@ async function run(): Promise<void> {
           }
         )
       }
-    }
 
-    if (failed) {
-      core.setFailed('Misspelled word(s)')
+      if (hasMisspelled) {
+        core.setFailed('Misspelled word(s)')
+      }
     }
   } catch (error) {
     if (error instanceof Error) core.setFailed(error.message)
