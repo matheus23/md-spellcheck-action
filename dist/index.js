@@ -242,7 +242,7 @@ function splitWords(str) {
     let linesOffset = 0;
     let line = 1;
     for (const lineInStr of str.split('\n')) {
-        for (const match of lineInStr.matchAll(/[\w']+/g)) {
+        for (const match of lineInStr.matchAll(/[\w'-]+/g)) {
             if (match.index == null) {
                 throw new Error(`Regex match went wrong. No index? ${match}`);
             }

@@ -20,7 +20,8 @@ jobs:
   spellcheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: matheus23/md-spellcheck-action@v2.0.0
+      - uses: actions/checkout@v2
+      - uses: matheus23/md-spellcheck-action@v2.1.0
         with:
           files-to-check: "*.md"
           words-to-ignore-file: ./words-to-ignore.txt

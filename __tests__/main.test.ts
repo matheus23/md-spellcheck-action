@@ -1,22 +1,15 @@
-// import * as process from 'process'
 import {expect, test} from '@jest/globals'
-import {Misspelled, initialise} from '../src/spellcheck'
+import {initialise} from '../src/spellcheck'
 
 test('detects misspelled words', async () => {
   const api = await initialise()
-  const errors = []
-  for await (const error of api.check('mispeled\nwoords')) {
-    errors.push(error)
-  }
+  const errors = await all(api.check('mispeled\nwoords'))
   expect(errors.length).toEqual(2)
 })
 
 test('has error spans', async () => {
   const api = await initialise()
-  const errors: Misspelled[] = []
-  for await (const error of api.check('mispeled\nwoords wat')) {
-    errors.push(error)
-  }
+  const errors = await all(api.check('mispeled\nwoords wat'))
   expect(errors[0]?.position?.start?.line).toEqual(1)
   expect(errors[0]?.position?.start?.column).toEqual(1)
   expect(errors[1]?.position?.start?.line).toEqual(2)
@@ -34,13 +27,17 @@ test('can handle non-ascii', async () => {
   expect(errors.length).toEqual(1)
 })
 
-// // shows how the runner will run a javascript action with env / stdout protocol
-// test('test runs', () => {
-//   process.env['INPUT_MILLISECONDS'] = '500'
-//   const np = process.execPath
-//   const ip = path.join(__dirname, '..', 'lib', 'main.js')
-//   const options: cp.ExecFileSyncOptions = {
-//     env: process.env
-//   }
-//   console.log(cp.execFileSync(np, [ip], options).toString())
-// })
+test('allow hyphens within words', async () => {
+  const api = await initialise()
+  const errors = await all(api.check('sozio-ekonomic'))
+  console.log(errors)
+  expect(errors.length).toEqual(1)
+})
+
+async function all<T>(gen: AsyncIterable<T>): Promise<T[]> {
+  const ts: T[] = []
+  for await (const t of gen) {
+    ts.push(t as T)
+  }
+  return ts
+}
