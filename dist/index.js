@@ -169,10 +169,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.splitWords = exports.initialise = void 0;
+exports.splitWords = exports.initialise = exports.WORD_REGEX = void 0;
 const parser_gfm_ex_1 = __nccwpck_require__(1977);
 const dictionary_en_1 = __importDefault(__nccwpck_require__(1278));
 const hunspell_asm_1 = __nccwpck_require__(4517);
+exports.WORD_REGEX = /[\wABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýÿ'-]+/g;
 function initialise() {
     return __awaiter(this, void 0, void 0, function* () {
         const { aff, dic } = yield getDictionaryEN();
@@ -242,7 +243,7 @@ function splitWords(str) {
     let linesOffset = 0;
     let line = 1;
     for (const lineInStr of str.split('\n')) {
-        for (const match of lineInStr.matchAll(/[\w'-]+/g)) {
+        for (const match of lineInStr.matchAll(exports.WORD_REGEX)) {
             if (match.index == null) {
                 throw new Error(`Regex match went wrong. No index? ${match}`);
             }

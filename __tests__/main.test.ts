@@ -30,7 +30,6 @@ test('can handle non-ascii', async () => {
 test('allow hyphens within words', async () => {
   const api = await initialise()
   const errors = await all(api.check('sozio-ekonomic'))
-  console.log(errors)
   expect(errors.length).toEqual(1)
 })
 

@@ -4,6 +4,9 @@ import {GfmExParser} from '@yozora/parser-gfm-ex'
 import dictionaryEn from 'dictionary-en'
 import {loadModule} from 'hunspell-asm'
 
+export const WORD_REGEX =
+  /[\wABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýÿ'-]+/g
+
 export interface Misspelled {
   position: Position
   word: string
@@ -84,7 +87,7 @@ export function splitWords(str: string): {word: string; position: Position}[] {
   let line = 1
 
   for (const lineInStr of str.split('\n')) {
-    for (const match of lineInStr.matchAll(/[\w'-]+/g)) {
+    for (const match of lineInStr.matchAll(WORD_REGEX)) {
       if (match.index == null) {
         throw new Error(`Regex match went wrong. No index? ${match}`)
       }
