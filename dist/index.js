@@ -309,7 +309,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.splitWords = exports.initialise = exports.SKIP_TYPES = exports.WORD_REGEX = void 0;
+exports.splitWords = exports.initialise = exports.BLOCK_TYPES = exports.SKIP_TYPES = exports.WORD_REGEX = void 0;
 const parser_gfm_ex_1 = __nccwpck_require__(1977);
 const dictionary_en_1 = __importDefault(__nccwpck_require__(1278));
 const hunspell_asm_1 = __nccwpck_require__(4517);
@@ -317,6 +317,15 @@ const point = __importStar(__nccwpck_require__(3767));
 const positions = __importStar(__nccwpck_require__(2325));
 exports.WORD_REGEX = /[\wABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýÿ'-]+/g;
 exports.SKIP_TYPES = ['inlineCode', 'inlineMath'];
+exports.BLOCK_TYPES = [
+    'paragraph',
+    'blockquote',
+    'definition',
+    'footnote',
+    'footnoteDefinition',
+    'heading',
+    'table'
+];
 function initialise(ignoreList) {
     return __awaiter(this, void 0, void 0, function* () {
         const { aff, dic } = yield getDictionaryEN();
@@ -340,13 +349,15 @@ function initialise(ignoreList) {
                     const parser = new parser_gfm_ex_1.GfmExParser();
                     parser.setDefaultParseOptions({ shouldReservePosition: true });
                     const parsed = parser.parse(contents);
-                    for (const { word, position } of mergedWords(markdownTokens(parsed))) {
-                        if (!hunspell.spell(word)) {
-                            yield yield __await({
-                                word,
-                                position,
-                                suggestions: hunspell.suggest(word)
-                            });
+                    for (const block of markdownBlocks(parsed)) {
+                        for (const { word, position } of mergedWords(markdownTokens(block))) {
+                            if (!hunspell.spell(word)) {
+                                yield yield __await({
+                                    word,
+                                    position,
+                                    suggestions: hunspell.suggest(word)
+                                });
+                            }
                         }
                     }
                 });
@@ -355,7 +366,16 @@ function initialise(ignoreList) {
     });
 }
 exports.initialise = initialise;
-// Filtering AST nodes down to words
+function* markdownBlocks(node) {
+    if (exports.BLOCK_TYPES.includes(node.type)) {
+        yield node;
+    }
+    else if (isParent(node)) {
+        for (const child of node.children) {
+            yield* markdownBlocks(child);
+        }
+    }
+}
 function* markdownTokens(node) {
     for (const literal of textNodes(node)) {
         yield* literalPositionedTokens(literal);
