@@ -55,12 +55,14 @@ function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             const globPattern = core.getInput('files-to-check');
+            const excludePattern = core.getInput('files-to-exclude');
             const ignoreFile = core.getInput('words-to-ignore-file').trim();
-            if (globPattern == null) {
+            if (globPattern == null || globPattern === '') {
                 core.setFailed(`Missing configuration field "files-to-check". Please edit your github action workflow.`);
                 return;
             }
-            const globs = yield glob.create(globPattern);
+            const included = yield glob.create(globPattern);
+            const isExcluded = yield excluder(excludePattern);
             const ignores = [];
             let ignoreMsg = () => 'If you want to ignore this message, configure an ignore file for md-spellcheck-action.';
             if (ignoreFile !== '') {
@@ -98,8 +100,12 @@ function run() {
             let checkedFiles = false;
             const spell = yield (0, spellcheck_1.initialise)(ignores);
             try {
-                for (var _c = __asyncValues(globs.globGenerator()), _d; _d = yield _c.next(), !_d.done;) {
+                for (var _c = __asyncValues(included.globGenerator()), _d; _d = yield _c.next(), !_d.done;) {
                     const file = _d.value;
+                    if (isExcluded(file)) {
+                        core.info(`Ignoring ${file} because it is excluded via 'files-to-exclude'.`);
+                        continue;
+                    }
                     checkedFiles = true;
                     const contents = (0, fs_1.readFileSync)(file, { encoding: 'utf8' });
                     try {
@@ -145,6 +151,16 @@ function run() {
             if (error instanceof Error)
                 core.setFailed(error.message);
         }
+    });
+}
+function excluder(excludePattern) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (excludePattern === '') {
+            return () => false;
+        }
+        const exclude = yield glob.create(excludePattern);
+        const excluded = yield exclude.glob();
+        return filename => excluded.includes(filename);
     });
 }
 run();
@@ -388,11 +404,22 @@ function* textNodes(node) {
     if (isText(node)) {
         yield node;
     }
+    else if (isLink(node)) {
+        const text = innerText(node);
+        if (text === node.url) {
+            return; // skip this node
+        }
+    }
     else if (isParent(node)) {
         for (const child of node.children) {
             yield* textNodes(child);
         }
     }
+}
+function innerText(node) {
+    return node.children
+        .map(child => isText(child) ? child.value : isParent(child) ? innerText(child) : '')
+        .join('');
 }
 function* literalPositionedTokens(node) {
     if (node.position == null) {
@@ -490,6 +517,9 @@ function getDictionaryEN() {
 }
 function isText(obj) {
     return obj.type === 'text';
+}
+function isLink(obj) {
+    return obj.type === 'link';
 }
 function isParent(obj) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
