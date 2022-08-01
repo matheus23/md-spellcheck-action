@@ -5,8 +5,6 @@ import {readFileSync} from 'fs'
 
 async function run(): Promise<void> {
   try {
-    const spell = await initialise()
-
     const globPattern = core.getInput('files-to-check')
     const ignoreFile = core.getInput('words-to-ignore-file').trim()
 
@@ -19,7 +17,7 @@ async function run(): Promise<void> {
 
     const globs = await glob.create(globPattern)
 
-    const ignores = new Set<string>()
+    const ignores: {word: string; similarTo?: string}[] = []
     let ignoreMsg: (word: string) => string = () =>
       'If you want to ignore this message, configure an ignore file for md-spellcheck-action.'
 
@@ -30,19 +28,35 @@ async function run(): Promise<void> {
         '\n'
       )
 
+      let line = 1
       for (const entry of ignoreEntries) {
-        ignores.add(entry.trim().toLowerCase())
+        const commentRemoved = entry.replace(/#.*/, '')
+        const trimmed = commentRemoved.trim()
+        if (trimmed === '') {
+          continue
+        }
+        const split = trimmed.split(/\s+/)
+        if (split.length === 1) {
+          ignores.push({word: split[0]})
+        } else if (split.length === 3 && split[1] === 'like') {
+          ignores.push({word: split[0], similarTo: split[2]})
+        } else {
+          core.warning(
+            `Couldn't parse ignore file entry '${entry}' on line ${line}. Expected format: Just a <word> or '<word> like <word>'`
+          )
+        }
+        line++
       }
     }
 
-    if (ignores.size > 0) {
-      core.info(`Ignoring words: ${Array.from(ignores)}`)
+    if (ignores.length > 0) {
+      core.info(`Ignoring words: ${ignores.map(ignore => ignore.word)}`)
     } else {
       core.info(
         `No words to ignore configured: ${
           ignoreFile === ''
             ? 'No ignore file configured.'
-            : 'No words in the ignore file.'
+            : 'No words parsed from the ignore file.'
         }`
       )
     }
@@ -50,15 +64,13 @@ async function run(): Promise<void> {
     let hasMisspelled = false
     let checkedFiles = false
 
+    const spell = await initialise(ignores)
+
     for await (const file of globs.globGenerator()) {
       checkedFiles = true
       const contents = readFileSync(file, {encoding: 'utf8'})
 
       for await (const result of spell.check(contents)) {
-        if (ignores.has(result.word.toLowerCase())) {
-          continue
-        }
-
         hasMisspelled = true
 
         const suggestions = result.suggestions.map(s => `"${s}"`).join(', ')

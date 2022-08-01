@@ -26,12 +26,24 @@ export interface API {
   check(contents: string): AsyncIterable<Misspelled>
 }
 
-export async function initialise(): Promise<API> {
+export async function initialise(
+  ignoreList?: Iterable<{word: string; similarTo?: string}>
+): Promise<API> {
   const {aff, dic} = await getDictionaryEN()
   const hunspellFactory = await loadModule()
   const affPath = hunspellFactory.mountBuffer(aff)
   const dicPath = hunspellFactory.mountBuffer(dic)
   const hunspell = hunspellFactory.create(affPath, dicPath)
+
+  if (ignoreList != null) {
+    for (const ignored of ignoreList) {
+      if (ignored.similarTo != null) {
+        hunspell.addWordWithAffix(ignored.word, ignored.similarTo)
+      } else {
+        hunspell.addWord(ignored.word)
+      }
+    }
+  }
 
   return {
     check: async function* check(contents: string) {

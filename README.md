@@ -26,3 +26,19 @@ jobs:
           files-to-check: "*.md"
           words-to-ignore-file: ./words-to-ignore.txt
 ```
+
+## Ignored Words
+
+The spellcheck action ignores all words within `code spans` and code blocks.
+
+Additionally ignored words can be configured using a `words-to-ignore-file` (configure `md-spellcheck-action` to pick that file up as shown above).
+This ignore file has following syntax:
+
+```ini
+# Anything after a # is a comment
+utopiculous # ignore a word by writing it here. Capitalization matters
+# You can provide words that are similar to the word you ignore in order
+# for hunspell to detect variations of the word and ignore it as well
+# (e.g. plural forms, prefixes, etc.)
+extradicious like delicious
+```
