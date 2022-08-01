@@ -5,6 +5,9 @@ inputs:
   files-to-check:
     required: true
     description: 'Newline-separated globs of files to check'
+  files-to-exclude:
+    required: false
+    description: 'Newline-separated globs of files to exclude. Files that are both in files-to-check and files-to-exclude are excluded.'
   words-to-ignore-file:
     required: false
     description: 'A path to a text file with newline-separated custom words to ignore when checking'
