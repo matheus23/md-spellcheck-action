@@ -11,6 +11,15 @@ export const WORD_REGEX =
   /[\wABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýÿ'-]+/g
 
 export const SKIP_TYPES = ['inlineCode', 'inlineMath']
+export const BLOCK_TYPES = [
+  'paragraph',
+  'blockquote',
+  'definition',
+  'footnote',
+  'footnoteDefinition',
+  'heading',
+  'table'
+]
 
 export interface Word {
   word: string
@@ -50,11 +59,8 @@ export async function initialise(
       const parser = new GfmExParser()
       parser.setDefaultParseOptions({shouldReservePosition: true})
       const parsed = parser.parse(contents)
-      if (!isParent(parsed)) {
-        throw new Error(`Parse error: Expected children, got: ${parsed}`)
-      }
 
-      for (const block of parsed.children) {
+      for (const block of markdownBlocks(parsed)) {
         for (const {word, position} of mergedWords(markdownTokens(block))) {
           if (!hunspell.spell(word)) {
             yield {
@@ -69,7 +75,15 @@ export async function initialise(
   }
 }
 
-// Filtering AST nodes down to words
+function* markdownBlocks(node: Node): Iterable<Node> {
+  if (BLOCK_TYPES.includes(node.type)) {
+    yield node
+  } else if (isParent(node)) {
+    for (const child of node.children) {
+      yield* markdownBlocks(child)
+    }
+  }
+}
 
 function* markdownTokens(node: Node): Iterable<PositionedToken> {
   for (const literal of textNodes(node)) {
