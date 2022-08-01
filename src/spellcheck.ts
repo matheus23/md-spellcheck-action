@@ -50,13 +50,18 @@ export async function initialise(
       const parser = new GfmExParser()
       parser.setDefaultParseOptions({shouldReservePosition: true})
       const parsed = parser.parse(contents)
+      if (!isParent(parsed)) {
+        throw new Error(`Parse error: Expected children, got: ${parsed}`)
+      }
 
-      for (const {word, position} of mergedWords(markdownTokens(parsed))) {
-        if (!hunspell.spell(word)) {
-          yield {
-            word,
-            position,
-            suggestions: hunspell.suggest(word)
+      for (const block of parsed.children) {
+        for (const {word, position} of mergedWords(markdownTokens(block))) {
+          if (!hunspell.spell(word)) {
+            yield {
+              word,
+              position,
+              suggestions: hunspell.suggest(word)
+            }
           }
         }
       }
