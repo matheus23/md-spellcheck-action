@@ -75,7 +75,7 @@ function arbitraryTextOf(arbitrary: fc.Arbitrary<string>) {
 }
 
 test('works on a simple example', () => {
-  expect(splitWords("  that's some\n\n...text")).toEqual([
+  expect(all(splitWords("  that's some\n\n...text"))).toEqual([
     {
       word: "that's",
       position: {
@@ -127,10 +127,10 @@ test('works on a simple example', () => {
 test('property: the split never contains whitespace', () => {
   fc.assert(
     fc.property(arbitraryTextOf(fc.unicodeString()), str => {
-      splitWords(str).forEach(result => {
-        expect(result.word.indexOf('\n')).toEqual(-1)
-        expect(result.word.indexOf(' ')).toEqual(-1)
-      })
+      for (const {word} of splitWords(str)) {
+        expect(word.indexOf('\n')).toEqual(-1)
+        expect(word.indexOf(' ')).toEqual(-1)
+      }
     })
   )
 })
@@ -138,11 +138,9 @@ test('property: the split never contains whitespace', () => {
 test('property: the split position offsets match the text', () => {
   fc.assert(
     fc.property(arbitraryTextOf(fc.unicodeString()), str => {
-      splitWords(str).forEach(result => {
-        expect(lookupByPositionOffset(str, result.position)).toEqual(
-          result.word
-        )
-      })
+      for (const {word, position} of splitWords(str)) {
+        expect(lookupByPositionOffset(str, position)).toEqual(word)
+      }
     })
   )
 })
@@ -150,7 +148,7 @@ test('property: the split position offsets match the text', () => {
 test('property: the split position lines and columns match the text', () => {
   fc.assert(
     fc.property(arbitraryTextOf(fc.unicodeString()), str => {
-      const split = splitWords(str)
+      const split = all(splitWords(str))
       const wordsByLookup = split.map(piece =>
         lookupByPositionLineAndColumn(str, piece.position)
       )
@@ -163,7 +161,7 @@ test('property: the split position lines and columns match the text', () => {
 test('property: the split position start and end lines and columns generate the offset', () => {
   fc.assert(
     fc.property(arbitraryTextOf(fc.unicodeString()), str => {
-      const split = splitWords(str)
+      const split = all(splitWords(str))
       const offsetsFromColumnAndLine = split.map(piece => ({
         start: lineAndColumnToOffset(str, piece.position.start),
         end: lineAndColumnToOffset(str, piece.position.end)
@@ -180,7 +178,7 @@ test('property: the split position start and end lines and columns generate the 
 test('property: the split position line and column match the offset', () => {
   fc.assert(
     fc.property(arbitraryTextOf(fc.unicodeString()), str => {
-      const split = splitWords(str)
+      const split = all(splitWords(str))
       const offsetsFromColumnAndLine = split.map(piece => ({
         start: offsetToLineAndColumn(str, piece.position.start.offset || 0),
         end: offsetToLineAndColumn(str, piece.position.end.offset || 0)
@@ -212,3 +210,11 @@ test('property: offset to line and column and back roundtrips', () => {
     })
   )
 })
+
+function all<T>(gen: Iterable<T>): T[] {
+  const ts: T[] = []
+  for (const t of gen) {
+    ts.push(t as T)
+  }
+  return ts
+}

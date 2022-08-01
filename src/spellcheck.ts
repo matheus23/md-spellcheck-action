@@ -4,12 +4,20 @@ import {GfmExParser} from '@yozora/parser-gfm-ex'
 import dictionaryEn from 'dictionary-en'
 import {loadModule} from 'hunspell-asm'
 
+import * as point from './point'
+import * as positions from './positions'
+
 export const WORD_REGEX =
   /[\wABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýÿ'-]+/g
 
-export interface Misspelled {
-  position: Position
+export const SKIP_TYPES = ['inlineCode', 'inlineMath']
+
+export interface Word {
   word: string
+  position: Position
+}
+
+export interface Misspelled extends Word {
   suggestions: string[]
 }
 
@@ -31,48 +39,12 @@ export async function initialise(): Promise<API> {
       parser.setDefaultParseOptions({shouldReservePosition: true})
       const parsed = parser.parse(contents)
 
-      const nodeStack: Parent<string>[] = [parsed]
-      while (nodeStack.length > 0) {
-        const node = nodeStack.pop()
-        // types...
-        if (node == null) {
-          break
-        }
-
-        for (const child of node.children) {
-          if (isText(child)) {
-            for (const {word, position} of splitWords(child.value)) {
-              if (!hunspell.spell(word)) {
-                if (child.position == null) {
-                  throw new Error('Missing position spans')
-                }
-                yield {
-                  position: positionFromPoint(child.position.start, position),
-                  word,
-                  suggestions: hunspell.suggest(word)
-                }
-              }
-            }
-          } else if (isParent(child)) {
-            const skipTypes = [
-              'ecmaImport',
-              'code',
-              'inlineCode',
-              'math',
-              'inlineMath',
-              'html',
-              'frontmatter',
-              'link',
-              'linkReference',
-              'image',
-              'imageReference',
-              'footnote',
-              'footnoteReference',
-              'footnoteDefinition'
-            ]
-            if (!skipTypes.includes(child.type)) {
-              nodeStack.push(child)
-            }
+      for (const {word, position} of mergedWords(markdownTokens(parsed))) {
+        if (!hunspell.spell(word)) {
+          yield {
+            word,
+            position,
+            suggestions: hunspell.suggest(word)
           }
         }
       }
@@ -80,73 +52,132 @@ export async function initialise(): Promise<API> {
   }
 }
 
-export function splitWords(str: string): {word: string; position: Position}[] {
-  const pieces: {word: string; position: Position}[] = []
+// Filtering AST nodes down to words
 
-  let linesOffset = 0
-  let line = 1
-
-  for (const lineInStr of str.split('\n')) {
-    for (const match of lineInStr.matchAll(WORD_REGEX)) {
-      if (match.index == null) {
-        throw new Error(`Regex match went wrong. No index? ${match}`)
-      }
-
-      const word = match[0]
-      const offset = linesOffset + match.index
-      const column = match.index + 1
-
-      pieces.push({
-        word,
-        position: {
-          start: {
-            line,
-            column,
-            offset
-          },
-          end: {
-            line,
-            column: column + word.length,
-            offset: offset + word.length
-          }
-        }
-      })
-    }
-
-    linesOffset += lineInStr.length + 1 // +1 for the newline
-    line++
+function* markdownTokens(node: Node): Iterable<PositionedToken> {
+  for (const literal of textNodes(node)) {
+    yield* literalPositionedTokens(literal)
   }
-
-  return pieces
 }
 
-function positionFromPoint(point: Point, position: Position): Position {
-  const line0 = point.line - 1
-  const column0 = point.column - 1
+function* textNodes(node: Node): Iterable<Literal> {
+  if (SKIP_TYPES.includes(node.type)) {
+    return
+  }
 
-  return {
-    start: {
-      line: position.start.line + line0,
-      column:
-        position.start.line === 1
-          ? position.start.column + column0
-          : position.start.column,
-      offset:
-        position.start.offset != null && point.offset != null
-          ? position.start.offset + point.offset
-          : undefined
-    },
-    end: {
-      line: position.end.line + line0,
-      column:
-        position.end.line === 1
-          ? position.end.column + column0
-          : position.end.column,
-      offset:
-        position.end.offset != null && point.offset != null
-          ? position.end.offset + point.offset
-          : undefined
+  if (isText(node)) {
+    yield node
+  } else if (isParent(node)) {
+    for (const child of node.children) {
+      yield* textNodes(child)
     }
+  }
+}
+
+function* literalPositionedTokens(node: Literal): Iterable<PositionedToken> {
+  if (node.position == null) {
+    throw new Error('Missing position spans')
+  }
+
+  let start = node.position.start
+
+  for (const token of wordsAndWhitespace(node.value)) {
+    const end = point.offset(start, point.end(token.content))
+
+    yield {
+      ...token,
+      position: {start, end}
+    }
+
+    start = end
+  }
+}
+
+interface Token {
+  type: 'word' | 'whitespace'
+  content: string
+}
+
+interface PositionedToken extends Token {
+  position: Position
+}
+
+function* wordsAndWhitespace(str: string): Iterable<Token> {
+  let lastEnd = 0
+  for (const match of str.matchAll(WORD_REGEX)) {
+    if (match.index == null) {
+      throw new Error(`Regex match went wrong. No index? ${match}`)
+    }
+
+    const word = match[0]
+
+    if (match.index !== 0 && lastEnd !== match.index) {
+      yield {
+        type: 'whitespace',
+        content: str.substring(lastEnd, match.index)
+      }
+    }
+
+    yield {
+      type: 'word',
+      content: word
+    }
+
+    lastEnd = match.index + word.length
+  }
+
+  if (lastEnd !== str.length) {
+    yield {
+      type: 'whitespace',
+      content: str.substring(lastEnd, str.length)
+    }
+  }
+}
+
+function* mergedWords(tokens: Iterable<PositionedToken>): Iterable<Word> {
+  let currentWord: null | Word = null
+
+  for (const token of tokens) {
+    // current word begins
+    if (currentWord == null && token.type === 'word') {
+      currentWord = {
+        word: token.content,
+        position: token.position
+      }
+      // continuing the current word
+    } else if (currentWord != null && token.type === 'word') {
+      currentWord = {
+        word: `${currentWord.word}${token.content}`,
+        position: positions.merge(currentWord.position, token.position)
+      }
+      // current word ended
+    } else if (currentWord != null && token.type === 'whitespace') {
+      yield currentWord
+      currentWord = null
+    }
+  }
+
+  if (currentWord != null) {
+    yield currentWord
+  }
+}
+
+export function* splitWords(str: string): Iterable<Word> {
+  let start: Point = {
+    line: 1,
+    column: 1,
+    offset: 0
+  }
+
+  for (const item of wordsAndWhitespace(str)) {
+    const end = point.offset(start, point.end(item.content))
+    if (item.type === 'word') {
+      yield {
+        word: item.content,
+        position: {start, end}
+      }
+    }
+    start = end
   }
 }
 

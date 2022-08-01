@@ -33,6 +33,12 @@ test('allow hyphens within words', async () => {
   expect(errors.length).toEqual(1)
 })
 
+test('handle broken-up-by-markup words', async () => {
+  const api = await initialise()
+  const errors = await all(api.check('**Ama**zing'))
+  expect(errors).toEqual([])
+})
+
 async function all<T>(gen: AsyncIterable<T>): Promise<T[]> {
   const ts: T[] = []
   for await (const t of gen) {
