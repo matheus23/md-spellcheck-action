@@ -21,9 +21,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: matheus23/md-spellcheck-action@v4.0.0
+      - uses: matheus23/md-spellcheck-action@v4.1.0
         with:
           files-to-check: "*.md"
+          files-to-exclude: "LICENSE.md" # optional
           words-to-ignore-file: ./words-to-ignore.txt
 ```
 
