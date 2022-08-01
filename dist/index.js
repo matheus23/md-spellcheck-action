@@ -54,7 +54,6 @@ function run() {
     var e_1, _a, e_2, _b;
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const spell = yield (0, spellcheck_1.initialise)();
             const globPattern = core.getInput('files-to-check');
             const ignoreFile = core.getInput('words-to-ignore-file').trim();
             if (globPattern == null) {
@@ -62,25 +61,42 @@ function run() {
                 return;
             }
             const globs = yield glob.create(globPattern);
-            const ignores = new Set();
+            const ignores = [];
             let ignoreMsg = () => 'If you want to ignore this message, configure an ignore file for md-spellcheck-action.';
             if (ignoreFile !== '') {
                 ignoreMsg = word => `If you want to ignore this message, add ${word} to the ignore file at ${ignoreFile}`;
                 const ignoreEntries = (0, fs_1.readFileSync)(ignoreFile, { encoding: 'utf8' }).split('\n');
+                let line = 1;
                 for (const entry of ignoreEntries) {
-                    ignores.add(entry.trim().toLowerCase());
+                    const commentRemoved = entry.replace(/#.*/, '');
+                    const trimmed = commentRemoved.trim();
+                    if (trimmed === '') {
+                        continue;
+                    }
+                    const split = trimmed.split(/\s+/);
+                    if (split.length === 1) {
+                        ignores.push({ word: split[0] });
+                    }
+                    else if (split.length === 3 && split[1] === 'like') {
+                        ignores.push({ word: split[0], similarTo: split[2] });
+                    }
+                    else {
+                        core.warning(`Couldn't parse ignore file entry '${entry}' on line ${line}. Expected format: Just a <word> or '<word> like <word>'`);
+                    }
+                    line++;
                 }
             }
-            if (ignores.size > 0) {
-                core.info(`Ignoring words: ${Array.from(ignores)}`);
+            if (ignores.length > 0) {
+                core.info(`Ignoring words: ${ignores.map(ignore => ignore.word)}`);
             }
             else {
                 core.info(`No words to ignore configured: ${ignoreFile === ''
                     ? 'No ignore file configured.'
-                    : 'No words in the ignore file.'}`);
+                    : 'No words parsed from the ignore file.'}`);
             }
             let hasMisspelled = false;
             let checkedFiles = false;
+            const spell = yield (0, spellcheck_1.initialise)(ignores);
             try {
                 for (var _c = __asyncValues(globs.globGenerator()), _d; _d = yield _c.next(), !_d.done;) {
                     const file = _d.value;
@@ -89,9 +105,6 @@ function run() {
                     try {
                         for (var _e = (e_2 = void 0, __asyncValues(spell.check(contents))), _f; _f = yield _e.next(), !_f.done;) {
                             const result = _f.value;
-                            if (ignores.has(result.word.toLowerCase())) {
-                                continue;
-                            }
                             hasMisspelled = true;
                             const suggestions = result.suggestions.map(s => `"${s}"`).join(', ');
                             core.error(`Misspelled word "${result.word}".\nSuggested alternatives: ${suggestions}\n${ignoreMsg(result.word)}`, {
@@ -139,11 +152,138 @@ run();
 
 /***/ }),
 
+/***/ 3767:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.max = exports.min = exports.offset = exports.end = void 0;
+function end(str) {
+    let line = 1;
+    let lastNewlineOffset = -1;
+    for (const match of str.matchAll(/\n/g)) {
+        if (match.index == null) {
+            throw new Error(`Regex match went wrong. No index? ${match}`);
+        }
+        line++;
+        lastNewlineOffset = match.index;
+    }
+    return {
+        line,
+        column: str.length - lastNewlineOffset,
+        offset: str.length
+    };
+}
+exports.end = end;
+function offset(point, relativeOffset) {
+    const line0 = point.line - 1;
+    const column0 = point.column - 1;
+    return {
+        line: relativeOffset.line + line0,
+        column: relativeOffset.line === 1
+            ? relativeOffset.column + column0
+            : relativeOffset.column,
+        offset: relativeOffset.offset != null && point.offset != null
+            ? relativeOffset.offset + point.offset
+            : undefined
+    };
+}
+exports.offset = offset;
+function min(a, b) {
+    if (a.offset && b.offset) {
+        return a.offset < b.offset ? a : b;
+    }
+    if (a.line === b.line) {
+        return a.column < b.column ? a : b;
+    }
+    return a.line < b.line ? a : b;
+}
+exports.min = min;
+function max(a, b) {
+    if (a.offset && b.offset) {
+        return a.offset > b.offset ? a : b;
+    }
+    if (a.line === b.line) {
+        return a.column > b.column ? a : b;
+    }
+    return a.line > b.line ? a : b;
+}
+exports.max = max;
+
+
+/***/ }),
+
+/***/ 2325:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.merge = void 0;
+const point = __importStar(__nccwpck_require__(3767));
+function merge(a, b) {
+    return {
+        start: point.min(a.start, b.start),
+        end: point.max(a.end, b.end)
+    };
+}
+exports.merge = merge;
+
+
+/***/ }),
+
 /***/ 8800:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -169,67 +309,44 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.splitWords = exports.initialise = exports.WORD_REGEX = void 0;
+exports.splitWords = exports.initialise = exports.SKIP_TYPES = exports.WORD_REGEX = void 0;
 const parser_gfm_ex_1 = __nccwpck_require__(1977);
 const dictionary_en_1 = __importDefault(__nccwpck_require__(1278));
 const hunspell_asm_1 = __nccwpck_require__(4517);
+const point = __importStar(__nccwpck_require__(3767));
+const positions = __importStar(__nccwpck_require__(2325));
 exports.WORD_REGEX = /[\wABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýÿ'-]+/g;
-function initialise() {
+exports.SKIP_TYPES = ['inlineCode', 'inlineMath'];
+function initialise(ignoreList) {
     return __awaiter(this, void 0, void 0, function* () {
         const { aff, dic } = yield getDictionaryEN();
         const hunspellFactory = yield (0, hunspell_asm_1.loadModule)();
         const affPath = hunspellFactory.mountBuffer(aff);
         const dicPath = hunspellFactory.mountBuffer(dic);
         const hunspell = hunspellFactory.create(affPath, dicPath);
+        if (ignoreList != null) {
+            for (const ignored of ignoreList) {
+                if (ignored.similarTo != null) {
+                    hunspell.addWordWithAffix(ignored.word, ignored.similarTo);
+                }
+                else {
+                    hunspell.addWord(ignored.word);
+                }
+            }
+        }
         return {
             check: function check(contents) {
                 return __asyncGenerator(this, arguments, function* check_1() {
                     const parser = new parser_gfm_ex_1.GfmExParser();
                     parser.setDefaultParseOptions({ shouldReservePosition: true });
                     const parsed = parser.parse(contents);
-                    const nodeStack = [parsed];
-                    while (nodeStack.length > 0) {
-                        const node = nodeStack.pop();
-                        // types...
-                        if (node == null) {
-                            break;
-                        }
-                        for (const child of node.children) {
-                            if (isText(child)) {
-                                for (const { word, position } of splitWords(child.value)) {
-                                    if (!hunspell.spell(word)) {
-                                        if (child.position == null) {
-                                            throw new Error('Missing position spans');
-                                        }
-                                        yield yield __await({
-                                            position: positionFromPoint(child.position.start, position),
-                                            word,
-                                            suggestions: hunspell.suggest(word)
-                                        });
-                                    }
-                                }
-                            }
-                            else if (isParent(child)) {
-                                const skipTypes = [
-                                    'ecmaImport',
-                                    'code',
-                                    'inlineCode',
-                                    'math',
-                                    'inlineMath',
-                                    'html',
-                                    'frontmatter',
-                                    'link',
-                                    'linkReference',
-                                    'image',
-                                    'imageReference',
-                                    'footnote',
-                                    'footnoteReference',
-                                    'footnoteDefinition'
-                                ];
-                                if (!skipTypes.includes(child.type)) {
-                                    nodeStack.push(child);
-                                }
-                            }
+                    for (const { word, position } of mergedWords(markdownTokens(parsed))) {
+                        if (!hunspell.spell(word)) {
+                            yield yield __await({
+                                word,
+                                position,
+                                suggestions: hunspell.suggest(word)
+                            });
                         }
                     }
                 });
@@ -238,64 +355,107 @@ function initialise() {
     });
 }
 exports.initialise = initialise;
-function splitWords(str) {
-    const pieces = [];
-    let linesOffset = 0;
-    let line = 1;
-    for (const lineInStr of str.split('\n')) {
-        for (const match of lineInStr.matchAll(exports.WORD_REGEX)) {
-            if (match.index == null) {
-                throw new Error(`Regex match went wrong. No index? ${match}`);
-            }
-            const word = match[0];
-            const offset = linesOffset + match.index;
-            const column = match.index + 1;
-            pieces.push({
-                word,
-                position: {
-                    start: {
-                        line,
-                        column,
-                        offset
-                    },
-                    end: {
-                        line,
-                        column: column + word.length,
-                        offset: offset + word.length
-                    }
-                }
-            });
-        }
-        linesOffset += lineInStr.length + 1; // +1 for the newline
-        line++;
+// Filtering AST nodes down to words
+function* markdownTokens(node) {
+    for (const literal of textNodes(node)) {
+        yield* literalPositionedTokens(literal);
     }
-    return pieces;
+}
+function* textNodes(node) {
+    if (exports.SKIP_TYPES.includes(node.type)) {
+        return;
+    }
+    if (isText(node)) {
+        yield node;
+    }
+    else if (isParent(node)) {
+        for (const child of node.children) {
+            yield* textNodes(child);
+        }
+    }
+}
+function* literalPositionedTokens(node) {
+    if (node.position == null) {
+        throw new Error('Missing position spans');
+    }
+    let start = node.position.start;
+    for (const token of wordsAndWhitespace(node.value)) {
+        const end = point.offset(start, point.end(token.content));
+        yield Object.assign(Object.assign({}, token), { position: { start, end } });
+        start = end;
+    }
+}
+function* wordsAndWhitespace(str) {
+    let lastEnd = 0;
+    for (const match of str.matchAll(exports.WORD_REGEX)) {
+        if (match.index == null) {
+            throw new Error(`Regex match went wrong. No index? ${match}`);
+        }
+        const word = match[0];
+        if (match.index !== 0 && lastEnd !== match.index) {
+            yield {
+                type: 'whitespace',
+                content: str.substring(lastEnd, match.index)
+            };
+        }
+        yield {
+            type: 'word',
+            content: word
+        };
+        lastEnd = match.index + word.length;
+    }
+    if (lastEnd !== str.length) {
+        yield {
+            type: 'whitespace',
+            content: str.substring(lastEnd, str.length)
+        };
+    }
+}
+function* mergedWords(tokens) {
+    let currentWord = null;
+    for (const token of tokens) {
+        // current word begins
+        if (currentWord == null && token.type === 'word') {
+            currentWord = {
+                word: token.content,
+                position: token.position
+            };
+            // continuing the current word
+        }
+        else if (currentWord != null && token.type === 'word') {
+            currentWord = {
+                word: `${currentWord.word}${token.content}`,
+                position: positions.merge(currentWord.position, token.position)
+            };
+            // current word ended
+        }
+        else if (currentWord != null && token.type === 'whitespace') {
+            yield currentWord;
+            currentWord = null;
+        }
+    }
+    if (currentWord != null) {
+        yield currentWord;
+    }
+}
+function* splitWords(str) {
+    let start = {
+        line: 1,
+        column: 1,
+        offset: 0
+    };
+    for (const item of wordsAndWhitespace(str)) {
+        const end = point.offset(start, point.end(item.content));
+        if (item.type === 'word') {
+            yield {
+                word: item.content,
+                position: { start, end }
+            };
+        }
+        start = end;
+    }
 }
 exports.splitWords = splitWords;
-function positionFromPoint(point, position) {
-    const line0 = point.line - 1;
-    const column0 = point.column - 1;
-    return {
-        start: {
-            line: position.start.line + line0,
-            column: position.start.line === 1
-                ? position.start.column + column0
-                : position.start.column,
-            offset: position.start.offset != null && point.offset != null
-                ? position.start.offset + point.offset
-                : undefined
-        },
-        end: {
-            line: position.end.line + line0,
-            column: position.end.line === 1
-                ? position.end.column + column0
-                : position.end.column,
-            offset: position.end.offset != null && point.offset != null
-                ? position.end.offset + point.offset
-                : undefined
-        }
-    };
-}
 function getDictionaryEN() {
     return __awaiter(this, void 0, void 0, function* () {
         return new Promise((resolve, reject) => {
