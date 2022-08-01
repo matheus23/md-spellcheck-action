@@ -1,5 +1,5 @@
 // import * as core from '@actions/core'
-import type {Literal, Node, Parent, Point, Position} from '@yozora/ast'
+import type {Literal, Node, Parent, Point, Position, Link} from '@yozora/ast'
 import {GfmExParser} from '@yozora/parser-gfm-ex'
 import dictionaryEn from 'dictionary-en'
 import {loadModule} from 'hunspell-asm'
@@ -98,11 +98,24 @@ function* textNodes(node: Node): Iterable<Literal> {
 
   if (isText(node)) {
     yield node
+  } else if (isLink(node)) {
+    const text = innerText(node)
+    if (text === node.url) {
+      return // skip this node
+    }
   } else if (isParent(node)) {
     for (const child of node.children) {
       yield* textNodes(child)
     }
   }
+}
+
+function innerText(node: Parent): string {
+  return node.children
+    .map(child =>
+      isText(child) ? child.value : isParent(child) ? innerText(child) : ''
+    )
+    .join('')
 }
 
 function* literalPositionedTokens(node: Literal): Iterable<PositionedToken> {
@@ -224,6 +237,10 @@ async function getDictionaryEN(): Promise<{aff: Buffer; dic: Buffer}> {
 
 function isText(obj: Node): obj is Literal {
   return obj.type === 'text'
+}
+
+function isLink(obj: Node): obj is Link {
+  return obj.type === 'link'
 }
 
 function isParent(obj: Node): obj is Parent<string> {

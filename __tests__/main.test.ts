@@ -39,6 +39,14 @@ test('handle broken-up-by-markup words', async () => {
   expect(errors).toEqual([])
 })
 
+test('ignores urls', async () => {
+  const api = await initialise()
+  const errors = await all(api.check(`*The text of this Community Specification License is Copyright 2020 Joint Development Foundation
+and is licensed under the Creative Commons Attribution 4.0
+International License available at https://creativecommons.org/licenses/by/4.0/.*`))
+  expect(errors.map(misspelled => misspelled.word)).toEqual([])
+})
+
 async function all<T>(gen: AsyncIterable<T>): Promise<T[]> {
   const ts: T[] = []
   for await (const t of gen) {
