@@ -327,6 +327,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.splitWords = exports.initialise = exports.BLOCK_TYPES = exports.SKIP_TYPES = exports.WORD_REGEX = void 0;
 const parser_gfm_ex_1 = __nccwpck_require__(1977);
+const tokenizer_math_1 = __nccwpck_require__(6543);
+const tokenizer_inline_math_1 = __nccwpck_require__(5280);
 const dictionary_en_1 = __importDefault(__nccwpck_require__(1278));
 const hunspell_asm_1 = __nccwpck_require__(4517);
 const point = __importStar(__nccwpck_require__(3767));
@@ -363,6 +365,8 @@ function initialise(ignoreList) {
             check: function check(contents) {
                 return __asyncGenerator(this, arguments, function* check_1() {
                     const parser = new parser_gfm_ex_1.GfmExParser();
+                    parser.useTokenizer(new tokenizer_math_1.MathTokenizer());
+                    parser.useTokenizer(new tokenizer_inline_math_1.InlineMathTokenizer({ backtickRequired: false }));
                     parser.setDefaultParseOptions({ shouldReservePosition: true });
                     const parsed = parser.parse(contents);
                     for (const block of markdownBlocks(parsed)) {
@@ -13038,6 +13042,183 @@ exports.inlineCodeParse = parse;
 
 /***/ }),
 
+/***/ 5280:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+
+var ast = __nccwpck_require__(395);
+var character = __nccwpck_require__(8356);
+var coreTokenizer = __nccwpck_require__(9618);
+
+const match = function (api) {
+    const { backtickRequired } = this;
+    return { findDelimiter, processSingleDelimiter };
+    function* findDelimiter() {
+        const nodePoints = api.getNodePoints();
+        const blockStartIndex = api.getBlockStartIndex();
+        const blockEndIndex = api.getBlockEndIndex();
+        const potentialDelimiters = [];
+        for (let i = blockStartIndex; i < blockEndIndex; ++i) {
+            const c = nodePoints[i].codePoint;
+            switch (c) {
+                case character.AsciiCodePoint.BACKSLASH:
+                    i += 1;
+                    break;
+                case character.AsciiCodePoint.BACKTICK: {
+                    const _startIndex = i;
+                    i = coreTokenizer.eatOptionalCharacters(nodePoints, i + 1, blockEndIndex, character.AsciiCodePoint.BACKTICK);
+                    if (i >= blockEndIndex || nodePoints[i].codePoint !== character.AsciiCodePoint.DOLLAR_SIGN) {
+                        break;
+                    }
+                    const delimiter = {
+                        type: 'opener',
+                        startIndex: _startIndex,
+                        endIndex: i + 1,
+                    };
+                    potentialDelimiters.push(delimiter);
+                    break;
+                }
+                case character.AsciiCodePoint.DOLLAR_SIGN: {
+                    const _startIndex = i;
+                    i = coreTokenizer.eatOptionalCharacters(nodePoints, i + 1, blockEndIndex, character.AsciiCodePoint.BACKTICK);
+                    if (i < blockEndIndex && nodePoints[i].codePoint === character.AsciiCodePoint.DOLLAR_SIGN) {
+                        break;
+                    }
+                    const thickness = i - _startIndex;
+                    if (thickness <= 1) {
+                        if (backtickRequired)
+                            break;
+                        const delimiter = {
+                            type: 'both',
+                            startIndex: _startIndex,
+                            endIndex: i,
+                        };
+                        potentialDelimiters.push(delimiter);
+                        break;
+                    }
+                    const delimiter = {
+                        type: 'closer',
+                        startIndex: _startIndex,
+                        endIndex: i,
+                    };
+                    potentialDelimiters.push(delimiter);
+                    i -= 1;
+                    break;
+                }
+            }
+        }
+        let pIndex = 0;
+        let lastEndIndex = -1;
+        let delimiter = null;
+        while (pIndex < potentialDelimiters.length) {
+            const [startIndex, endIndex] = yield delimiter;
+            if (lastEndIndex === endIndex) {
+                if (delimiter == null || delimiter.startIndex >= startIndex)
+                    continue;
+            }
+            lastEndIndex = endIndex;
+            let openerDelimiter = null;
+            let closerDelimiter = null;
+            for (; pIndex < potentialDelimiters.length; ++pIndex) {
+                for (; pIndex < potentialDelimiters.length; ++pIndex) {
+                    const delimiter = potentialDelimiters[pIndex];
+                    if (delimiter.startIndex >= startIndex && delimiter.type !== 'closer')
+                        break;
+                }
+                if (pIndex + 1 >= potentialDelimiters.length)
+                    break;
+                openerDelimiter = potentialDelimiters[pIndex];
+                const thickness = openerDelimiter.endIndex - openerDelimiter.startIndex;
+                for (let i = pIndex + 1; i < potentialDelimiters.length; ++i) {
+                    const delimiter = potentialDelimiters[i];
+                    if (delimiter.type !== 'opener' &&
+                        delimiter.endIndex - delimiter.startIndex === thickness) {
+                        closerDelimiter = delimiter;
+                        break;
+                    }
+                }
+                if (closerDelimiter != null)
+                    break;
+            }
+            if (closerDelimiter == null)
+                return;
+            delimiter = {
+                type: 'full',
+                startIndex: openerDelimiter.startIndex,
+                endIndex: closerDelimiter.endIndex,
+                thickness: closerDelimiter.endIndex - closerDelimiter.startIndex,
+            };
+        }
+    }
+    function processSingleDelimiter(delimiter) {
+        const token = {
+            nodeType: ast.InlineMathType,
+            startIndex: delimiter.startIndex,
+            endIndex: delimiter.endIndex,
+            thickness: delimiter.thickness,
+        };
+        return [token];
+    }
+};
+
+const parse = function (api) {
+    return {
+        parse: tokens => tokens.map(token => {
+            const nodePoints = api.getNodePoints();
+            let startIndex = token.startIndex + token.thickness;
+            let endIndex = token.endIndex - token.thickness;
+            let isAllSpace = true;
+            for (let i = startIndex; i < endIndex; ++i) {
+                if (character.isSpaceLike(nodePoints[i].codePoint))
+                    continue;
+                isAllSpace = false;
+                break;
+            }
+            if (!isAllSpace && startIndex + 2 < endIndex) {
+                const firstCharacter = nodePoints[startIndex].codePoint;
+                const lastCharacter = nodePoints[endIndex - 1].codePoint;
+                if (character.isSpaceLike(firstCharacter) && character.isSpaceLike(lastCharacter)) {
+                    startIndex += 1;
+                    endIndex -= 1;
+                }
+            }
+            const value = character.calcStringFromNodePoints(nodePoints, startIndex, endIndex).replace(/\n/g, ' ');
+            const node = api.shouldReservePosition
+                ? { type: ast.InlineMathType, position: api.calcPosition(token), value }
+                : { type: ast.InlineMathType, value };
+            return node;
+        }),
+    };
+};
+
+const uniqueName = '@yozora/tokenizer-inline-math';
+
+class InlineMathTokenizer extends coreTokenizer.BaseInlineTokenizer {
+    constructor(props = {}) {
+        var _a, _b, _c;
+        super({
+            name: (_a = props.name) !== null && _a !== void 0 ? _a : uniqueName,
+            priority: (_b = props.priority) !== null && _b !== void 0 ? _b : coreTokenizer.TokenizerPriority.ATOMIC,
+        });
+        this.match = match;
+        this.parse = parse;
+        this.backtickRequired = (_c = props.backtickRequired) !== null && _c !== void 0 ? _c : true;
+    }
+}
+
+exports.InlineMathTokenizer = InlineMathTokenizer;
+exports.InlineMathTokenizerName = uniqueName;
+exports["default"] = InlineMathTokenizer;
+exports.inlineMathMatch = match;
+exports.inlineMathParse = parse;
+
+
+/***/ }),
+
 /***/ 4444:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -13926,6 +14107,98 @@ class ListTokenizer extends coreTokenizer.BaseBlockTokenizer {
 exports.ListTokenizer = ListTokenizer;
 exports.ListTokenizerName = uniqueName;
 exports["default"] = ListTokenizer;
+
+
+/***/ }),
+
+/***/ 6543:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+
+var character = __nccwpck_require__(8356);
+var FencedBlockTokenizer = __nccwpck_require__(4954);
+var ast = __nccwpck_require__(395);
+var coreTokenizer = __nccwpck_require__(9618);
+
+function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
+
+var FencedBlockTokenizer__default = /*#__PURE__*/_interopDefaultLegacy(FencedBlockTokenizer);
+
+const match = function (api) {
+    const { markers } = this;
+    const hook = FencedBlockTokenizer.fencedBlockMatch.call(this, api);
+    return Object.assign(Object.assign({}, hook), { isContainingBlock: true, eatOpener });
+    function eatOpener(line, parentToken) {
+        const result = hook.eatOpener(line, parentToken);
+        if (result == null)
+            return null;
+        const { token } = result;
+        const [lft, rht] = character.calcTrimBoundaryOfCodePoints(token.infoString);
+        if (lft >= rht)
+            return result;
+        let i = rht - 1;
+        for (; i >= lft; --i) {
+            const c = token.infoString[i].codePoint;
+            if (!markers.includes(c))
+                break;
+        }
+        const countOfTailingMarker = rht - i - 1;
+        if (countOfTailingMarker != token.markerCount)
+            return null;
+        const mathToken = Object.assign(Object.assign({}, token), { infoString: [], lines: [
+                {
+                    nodePoints: token.infoString,
+                    startIndex: 0,
+                    endIndex: rht - countOfTailingMarker,
+                    firstNonWhitespaceIndex: lft,
+                    countOfPrecedeSpaces: 0,
+                },
+            ] });
+        return { token: mathToken, nextIndex: line.endIndex, saturated: true };
+    }
+};
+
+const parse = function (api) {
+    return {
+        parse: tokens => tokens.map(token => {
+            const contents = coreTokenizer.mergeContentLinesFaithfully(token.lines);
+            let value = character.calcStringFromNodePoints(contents);
+            if (!/\n$/.test(value))
+                value += '\n';
+            const node = api.shouldReservePosition
+                ? { type: ast.MathType, position: token.position, value }
+                : { type: ast.MathType, value };
+            return node;
+        }),
+    };
+};
+
+const uniqueName = '@yozora/tokenizer-math';
+
+class MathTokenizer extends FencedBlockTokenizer__default["default"] {
+    constructor(props = {}) {
+        var _a, _b;
+        super({
+            name: (_a = props.name) !== null && _a !== void 0 ? _a : uniqueName,
+            priority: (_b = props.priority) !== null && _b !== void 0 ? _b : coreTokenizer.TokenizerPriority.FENCED_BLOCK,
+            nodeType: ast.MathType,
+            markers: [character.AsciiCodePoint.DOLLAR_SIGN],
+            markersRequired: 2,
+        });
+        this.match = match;
+        this.parse = parse;
+    }
+}
+
+exports.MathTokenizer = MathTokenizer;
+exports.MathTokenizerName = uniqueName;
+exports["default"] = MathTokenizer;
+exports.mathMatch = match;
+exports.mathParse = parse;
 
 
 /***/ }),

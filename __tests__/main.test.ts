@@ -49,6 +49,22 @@ International License available at https://creativecommons.org/licenses/by/4.0/.
   expect(errors.map(misspelled => misspelled.word)).toEqual([])
 })
 
+test('ignores math', async () => {
+  const api = await initialise()
+  const errors = await all(
+    api.check(`$$eqwations dont need spellcheck$$
+    
+    but real text needs it.`)
+  )
+  expect(errors.map(misspelled => misspelled.word)).toEqual([])
+})
+
+test('ignores inline math', async () => {
+  const api = await initialise()
+  const errors = await all(api.check(`This is a $misssspelled$ math word.`))
+  expect(errors.map(misspelled => misspelled.word)).toEqual([])
+})
+
 async function all<T>(gen: AsyncIterable<T>): Promise<T[]> {
   const ts: T[] = []
   for await (const t of gen) {

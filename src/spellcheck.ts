@@ -1,6 +1,8 @@
 // import * as core from '@actions/core'
 import type {Literal, Node, Parent, Point, Position, Link} from '@yozora/ast'
 import {GfmExParser} from '@yozora/parser-gfm-ex'
+import {MathTokenizer} from '@yozora/tokenizer-math'
+import {InlineMathTokenizer} from '@yozora/tokenizer-inline-math'
 import dictionaryEn from 'dictionary-en'
 import {loadModule} from 'hunspell-asm'
 
@@ -57,6 +59,8 @@ export async function initialise(
   return {
     check: async function* check(contents: string) {
       const parser = new GfmExParser()
+      parser.useTokenizer(new MathTokenizer())
+      parser.useTokenizer(new InlineMathTokenizer({backtickRequired: false}))
       parser.setDefaultParseOptions({shouldReservePosition: true})
       const parsed = parser.parse(contents)
 
