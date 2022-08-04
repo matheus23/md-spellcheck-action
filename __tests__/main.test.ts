@@ -41,7 +41,9 @@ test('handle broken-up-by-markup words', async () => {
 
 test('handle broken-up-by-link words', async () => {
   const api = await initialise()
-  const errors = await all(api.check(`Uses [Hunspell](http://hunspell.github.io/)'s code`))
+  const errors = await all(
+    api.check(`Uses [Hunspell](http://hunspell.github.io/)'s code`)
+  )
   expect(errors).toEqual([])
 })
 

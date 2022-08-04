@@ -436,10 +436,7 @@ function initialise() {
             },
             check(contents) {
                 return __asyncGenerator(this, arguments, function* check_1() {
-                    const parser = new parser_gfm_ex_1.GfmExParser();
-                    parser.useTokenizer(new tokenizer_math_1.MathTokenizer());
-                    parser.useTokenizer(new tokenizer_inline_math_1.InlineMathTokenizer({ backtickRequired: false }));
-                    parser.setDefaultParseOptions({ shouldReservePosition: true });
+                    const parser = constructParser();
                     const parsed = parser.parse(contents);
                     for (const block of markdownBlocks(parsed)) {
                         for (const { word, position } of mergedWords(markdownTokens(block))) {
@@ -458,6 +455,13 @@ function initialise() {
     });
 }
 exports.initialise = initialise;
+function constructParser() {
+    const parser = new parser_gfm_ex_1.GfmExParser();
+    parser.useTokenizer(new tokenizer_math_1.MathTokenizer());
+    parser.useTokenizer(new tokenizer_inline_math_1.InlineMathTokenizer({ backtickRequired: false }));
+    parser.setDefaultParseOptions({ shouldReservePosition: true });
+    return parser;
+}
 function* markdownBlocks(node) {
     if (exports.BLOCK_TYPES.includes(node.type)) {
         yield node;
@@ -477,14 +481,14 @@ function* textNodes(node) {
     if (exports.SKIP_TYPES.includes(node.type)) {
         return;
     }
-    if (isText(node)) {
-        yield node;
-    }
-    else if (isLink(node)) {
+    if (isLink(node)) {
         const text = innerText(node);
         if (text === node.url) {
             return; // skip this node
         }
+    }
+    if (isText(node)) {
+        yield node;
     }
     else if (isParent(node)) {
         for (const child of node.children) {
