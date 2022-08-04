@@ -1,7 +1,7 @@
 {
   "name": "md-spellcheck-action",
-  "version": "4.2.0",
-  "private": true,
+  "version": "4.2.1",
+  "private": false,
   "description": "Spellcheck markdown files in your github action",
   "main": "lib/main.js",
   "scripts": {

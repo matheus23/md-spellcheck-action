@@ -1,4 +1,2 @@
-'s
 WASM
-md
 md-spellcheck-action

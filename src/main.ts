@@ -1,13 +1,15 @@
 import * as core from '@actions/core'
 import * as glob from '@actions/glob'
-import {initialise} from './spellcheck'
+
+import * as ignoreFile from './ignorefile'
+import {initialise, Misspelled} from './spellcheck'
 import {readFileSync} from 'fs'
 
 async function run(): Promise<void> {
   try {
     const globPattern = core.getInput('files-to-check')
     const excludePattern = core.getInput('files-to-exclude')
-    const ignoreFile = core.getInput('words-to-ignore-file').trim()
+    const ignoreFilename = core.getInput('words-to-ignore-file').trim()
 
     if (globPattern == null || globPattern === '') {
       core.setFailed(
@@ -19,35 +21,31 @@ async function run(): Promise<void> {
     const included = await glob.create(globPattern)
     const isExcluded = await excluder(excludePattern)
 
-    const ignores: {word: string; similarTo?: string}[] = []
+    const spell = await initialise()
+
+    const ignores: ignoreFile.IgnoreItem[] = []
     let ignoreMsg: (word: string) => string = () =>
       'If you want to ignore this message, configure an ignore file for md-spellcheck-action.'
 
-    if (ignoreFile !== '') {
+    if (ignoreFilename !== '') {
       ignoreMsg = word =>
-        `If you want to ignore this message, add ${word} to the ignore file at ${ignoreFile}`
-      const ignoreEntries = readFileSync(ignoreFile, {encoding: 'utf8'}).split(
-        '\n'
+        `If you want to ignore this message, add ${word} to the ignore file at ${ignoreFilename}`
+      const ignoreFileContent = readFileSync(ignoreFilename, {encoding: 'utf8'})
+      const ignoreEntries = itMap(
+        ignoreFile.parse(ignoreFileContent),
+        (ignore: ignoreFile.IgnoreItem) => {
+          ignores.push(ignore)
+          return ignore
+        }
       )
 
-      let line = 1
-      for (const entry of ignoreEntries) {
-        const commentRemoved = entry.replace(/#.*/, '')
-        const trimmed = commentRemoved.trim()
-        if (trimmed === '') {
-          continue
-        }
-        const split = trimmed.split(/\s+/)
-        if (split.length === 1) {
-          ignores.push({word: split[0]})
-        } else if (split.length === 3 && split[1] === 'like') {
-          ignores.push({word: split[0], similarTo: split[2]})
-        } else {
-          core.warning(
-            `Couldn't parse ignore file entry '${entry}' on line ${line}. Expected format: Just a <word> or '<word> like <word>'`
-          )
-        }
-        line++
+      for (const misspelled of spell.addIgnores(ignoreEntries)) {
+        outputMisspelled(
+          misspelled,
+          ignoreFilename,
+          () =>
+            "When using '<word> like <word>' syntax in ignore files, the second must be a reference word that's already part of the dictionary."
+        )
       }
     }
 
@@ -56,7 +54,7 @@ async function run(): Promise<void> {
     } else {
       core.info(
         `No words to ignore configured: ${
-          ignoreFile === ''
+          ignoreFilename === ''
             ? 'No ignore file configured.'
             : 'No words parsed from the ignore file.'
         }`
@@ -65,8 +63,6 @@ async function run(): Promise<void> {
 
     let hasMisspelled = false
     let checkedFiles = false
-
-    const spell = await initialise(ignores)
 
     for await (const file of included.globGenerator()) {
       if (isExcluded(file)) {
@@ -82,22 +78,7 @@ async function run(): Promise<void> {
       for await (const result of spell.check(contents)) {
         hasMisspelled = true
 
-        const suggestions = result.suggestions.map(s => `"${s}"`).join(', ')
-        core.error(
-          `Misspelled word "${
-            result.word
-          }".\nSuggested alternatives: ${suggestions}\n${ignoreMsg(
-            result.word
-          )}`,
-          {
-            title: 'Misspelled word',
-            file,
-            startLine: result.position.start.line,
-            startColumn: result.position.start.column,
-            endLine: result.position.end.line,
-            endColumn: result.position.end.column
-          }
-        )
+        outputMisspelled(result, file, ignoreMsg)
       }
 
       core.info(`Spellchecked ${file}.`)
@@ -126,6 +107,35 @@ async function excluder(
   const excluded = await exclude.glob()
 
   return filename => excluded.includes(filename)
+}
+
+function outputMisspelled(
+  misspelled: Misspelled,
+  file: string,
+  ignoreMsg: (word: string) => string,
+  asWarning = false
+): void {
+  const suggestions = misspelled.suggestions.map(s => `"${s}"`).join(', ')
+  const outputFunc = asWarning ? core.warning : core.error
+  outputFunc(
+    `Misspelled word "${
+      misspelled.word
+    }".\nSuggested alternatives: ${suggestions}\n${ignoreMsg(misspelled.word)}`,
+    {
+      title: 'Misspelled word',
+      file,
+      startLine: misspelled.position.start.line,
+      startColumn: misspelled.position.start.column,
+      endLine: misspelled.position.end.line,
+      endColumn: misspelled.position.end.column
+    }
+  )
+}
+
+function* itMap<I, O>(iterator: Iterable<I>, f: (input: I) => O): Iterable<O> {
+  for (const input of iterator) {
+    yield f(input)
+  }
 }
 
 run()

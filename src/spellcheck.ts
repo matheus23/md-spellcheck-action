@@ -32,32 +32,43 @@ export interface Misspelled extends Word {
   suggestions: string[]
 }
 
+export interface IgnoreItem {
+  word: string
+  similarTo?: Word
+}
+
 export interface API {
+  addIgnores(ignoreList: Iterable<IgnoreItem>): Iterable<Misspelled>
   // eslint-disable-next-line no-undef
   check(contents: string): AsyncIterable<Misspelled>
 }
 
-export async function initialise(
-  ignoreList?: Iterable<{word: string; similarTo?: string}>
-): Promise<API> {
+export async function initialise(): Promise<API> {
   const {aff, dic} = await getDictionaryEN()
   const hunspellFactory = await loadModule()
   const affPath = hunspellFactory.mountBuffer(aff)
   const dicPath = hunspellFactory.mountBuffer(dic)
   const hunspell = hunspellFactory.create(affPath, dicPath)
 
-  if (ignoreList != null) {
-    for (const ignored of ignoreList) {
-      if (ignored.similarTo != null) {
-        hunspell.addWordWithAffix(ignored.word, ignored.similarTo)
-      } else {
-        hunspell.addWord(ignored.word)
-      }
-    }
-  }
-
   return {
-    check: async function* check(contents: string) {
+    *addIgnores(ignoreList) {
+      for (const ignored of ignoreList) {
+        if (ignored.similarTo != null) {
+          if (hunspell.spell(ignored.similarTo.word)) {
+            hunspell.addWordWithAffix(ignored.word, ignored.similarTo.word)
+          } else {
+            yield {
+              ...ignored.similarTo,
+              suggestions: hunspell.suggest(ignored.similarTo.word)
+            }
+          }
+        } else {
+          hunspell.addWord(ignored.word)
+        }
+      }
+    },
+
+    async *check(contents: string) {
       const parser = new GfmExParser()
       parser.useTokenizer(new MathTokenizer())
       parser.useTokenizer(new InlineMathTokenizer({backtickRequired: false}))

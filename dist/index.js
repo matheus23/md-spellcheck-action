@@ -1,6 +1,75 @@
 require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
 
+/***/ 1212:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.parse = void 0;
+const core = __importStar(__nccwpck_require__(2186));
+const point = __importStar(__nccwpck_require__(3767));
+function* parse(content) {
+    const lines = content.split('\n');
+    let lineNum = 1;
+    let offset = 0;
+    for (const line of lines) {
+        const commentRemoved = line.replace(/#.*/, '');
+        const trimmed = commentRemoved.trim();
+        if (trimmed === '') {
+            continue;
+        }
+        const split = trimmed.split(/\s+/);
+        if (split.length === 1) {
+            yield { word: split[0] };
+        }
+        else if (split.length === 3 && split[1] === 'like') {
+            const lineOffset = line.lastIndexOf(split[2]);
+            const start = {
+                line: lineNum,
+                column: lineOffset + 1,
+                offset: offset + lineOffset
+            };
+            const end = point.offset(start, point.end(split[2]));
+            const position = { start, end };
+            yield { word: split[0], similarTo: { word: split[2], position } };
+        }
+        else {
+            core.warning(`Couldn't parse ignore file entry '${line}' on line ${lineNum}. Expected format: Just a <word> or '<word> like <word>'`);
+        }
+        offset += line.length + 1; // 1 for the newline
+        lineNum++;
+    }
+}
+exports.parse = parse;
+
+
+/***/ }),
+
 /***/ 3109:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -48,6 +117,7 @@ var __asyncValues = (this && this.__asyncValues) || function (o) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(2186));
 const glob = __importStar(__nccwpck_require__(8090));
+const ignoreFile = __importStar(__nccwpck_require__(1212));
 const spellcheck_1 = __nccwpck_require__(8800);
 const fs_1 = __nccwpck_require__(7147);
 function run() {
@@ -56,49 +126,37 @@ function run() {
         try {
             const globPattern = core.getInput('files-to-check');
             const excludePattern = core.getInput('files-to-exclude');
-            const ignoreFile = core.getInput('words-to-ignore-file').trim();
+            const ignoreFilename = core.getInput('words-to-ignore-file').trim();
             if (globPattern == null || globPattern === '') {
                 core.setFailed(`Missing configuration field "files-to-check". Please edit your github action workflow.`);
                 return;
             }
             const included = yield glob.create(globPattern);
             const isExcluded = yield excluder(excludePattern);
+            const spell = yield (0, spellcheck_1.initialise)();
             const ignores = [];
             let ignoreMsg = () => 'If you want to ignore this message, configure an ignore file for md-spellcheck-action.';
-            if (ignoreFile !== '') {
-                ignoreMsg = word => `If you want to ignore this message, add ${word} to the ignore file at ${ignoreFile}`;
-                const ignoreEntries = (0, fs_1.readFileSync)(ignoreFile, { encoding: 'utf8' }).split('\n');
-                let line = 1;
-                for (const entry of ignoreEntries) {
-                    const commentRemoved = entry.replace(/#.*/, '');
-                    const trimmed = commentRemoved.trim();
-                    if (trimmed === '') {
-                        continue;
-                    }
-                    const split = trimmed.split(/\s+/);
-                    if (split.length === 1) {
-                        ignores.push({ word: split[0] });
-                    }
-                    else if (split.length === 3 && split[1] === 'like') {
-                        ignores.push({ word: split[0], similarTo: split[2] });
-                    }
-                    else {
-                        core.warning(`Couldn't parse ignore file entry '${entry}' on line ${line}. Expected format: Just a <word> or '<word> like <word>'`);
-                    }
-                    line++;
+            if (ignoreFilename !== '') {
+                ignoreMsg = word => `If you want to ignore this message, add ${word} to the ignore file at ${ignoreFilename}`;
+                const ignoreFileContent = (0, fs_1.readFileSync)(ignoreFilename, { encoding: 'utf8' });
+                const ignoreEntries = itMap(ignoreFile.parse(ignoreFileContent), (ignore) => {
+                    ignores.push(ignore);
+                    return ignore;
+                });
+                for (const misspelled of spell.addIgnores(ignoreEntries)) {
+                    outputMisspelled(misspelled, ignoreFilename, () => "When using '<word> like <word>' syntax in ignore files, the second must be a reference word that's already part of the dictionary.");
                 }
             }
             if (ignores.length > 0) {
                 core.info(`Ignoring words: ${ignores.map(ignore => ignore.word)}`);
             }
             else {
-                core.info(`No words to ignore configured: ${ignoreFile === ''
+                core.info(`No words to ignore configured: ${ignoreFilename === ''
                     ? 'No ignore file configured.'
                     : 'No words parsed from the ignore file.'}`);
             }
             let hasMisspelled = false;
             let checkedFiles = false;
-            const spell = yield (0, spellcheck_1.initialise)(ignores);
             try {
                 for (var _c = __asyncValues(included.globGenerator()), _d; _d = yield _c.next(), !_d.done;) {
                     const file = _d.value;
@@ -112,15 +170,7 @@ function run() {
                         for (var _e = (e_2 = void 0, __asyncValues(spell.check(contents))), _f; _f = yield _e.next(), !_f.done;) {
                             const result = _f.value;
                             hasMisspelled = true;
-                            const suggestions = result.suggestions.map(s => `"${s}"`).join(', ');
-                            core.error(`Misspelled word "${result.word}".\nSuggested alternatives: ${suggestions}\n${ignoreMsg(result.word)}`, {
-                                title: 'Misspelled word',
-                                file,
-                                startLine: result.position.start.line,
-                                startColumn: result.position.start.column,
-                                endLine: result.position.end.line,
-                                endColumn: result.position.end.column
-                            });
+                            outputMisspelled(result, file, ignoreMsg);
                         }
                     }
                     catch (e_2_1) { e_2 = { error: e_2_1 }; }
@@ -162,6 +212,23 @@ function excluder(excludePattern) {
         const excluded = yield exclude.glob();
         return filename => excluded.includes(filename);
     });
+}
+function outputMisspelled(misspelled, file, ignoreMsg, asWarning = false) {
+    const suggestions = misspelled.suggestions.map(s => `"${s}"`).join(', ');
+    const outputFunc = asWarning ? core.warning : core.error;
+    outputFunc(`Misspelled word "${misspelled.word}".\nSuggested alternatives: ${suggestions}\n${ignoreMsg(misspelled.word)}`, {
+        title: 'Misspelled word',
+        file,
+        startLine: misspelled.position.start.line,
+        startColumn: misspelled.position.start.column,
+        endLine: misspelled.position.end.line,
+        endColumn: misspelled.position.end.column
+    });
+}
+function* itMap(iterator, f) {
+    for (const input of iterator) {
+        yield f(input);
+    }
 }
 run();
 
@@ -344,25 +411,30 @@ exports.BLOCK_TYPES = [
     'heading',
     'table'
 ];
-function initialise(ignoreList) {
+function initialise() {
     return __awaiter(this, void 0, void 0, function* () {
         const { aff, dic } = yield getDictionaryEN();
         const hunspellFactory = yield (0, hunspell_asm_1.loadModule)();
         const affPath = hunspellFactory.mountBuffer(aff);
         const dicPath = hunspellFactory.mountBuffer(dic);
         const hunspell = hunspellFactory.create(affPath, dicPath);
-        if (ignoreList != null) {
-            for (const ignored of ignoreList) {
-                if (ignored.similarTo != null) {
-                    hunspell.addWordWithAffix(ignored.word, ignored.similarTo);
-                }
-                else {
-                    hunspell.addWord(ignored.word);
-                }
-            }
-        }
         return {
-            check: function check(contents) {
+            *addIgnores(ignoreList) {
+                for (const ignored of ignoreList) {
+                    if (ignored.similarTo != null) {
+                        if (hunspell.spell(ignored.similarTo.word)) {
+                            hunspell.addWordWithAffix(ignored.word, ignored.similarTo.word);
+                        }
+                        else {
+                            yield Object.assign(Object.assign({}, ignored.similarTo), { suggestions: hunspell.suggest(ignored.similarTo.word) });
+                        }
+                    }
+                    else {
+                        hunspell.addWord(ignored.word);
+                    }
+                }
+            },
+            check(contents) {
                 return __asyncGenerator(this, arguments, function* check_1() {
                     const parser = new parser_gfm_ex_1.GfmExParser();
                     parser.useTokenizer(new tokenizer_math_1.MathTokenizer());
