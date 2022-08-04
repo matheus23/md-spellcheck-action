@@ -69,10 +69,7 @@ export async function initialise(): Promise<API> {
     },
 
     async *check(contents: string) {
-      const parser = new GfmExParser()
-      parser.useTokenizer(new MathTokenizer())
-      parser.useTokenizer(new InlineMathTokenizer({backtickRequired: false}))
-      parser.setDefaultParseOptions({shouldReservePosition: true})
+      const parser = constructParser()
       const parsed = parser.parse(contents)
 
       for (const block of markdownBlocks(parsed)) {
@@ -88,6 +85,14 @@ export async function initialise(): Promise<API> {
       }
     }
   }
+}
+
+function constructParser(): GfmExParser {
+  const parser = new GfmExParser()
+  parser.useTokenizer(new MathTokenizer())
+  parser.useTokenizer(new InlineMathTokenizer({backtickRequired: false}))
+  parser.setDefaultParseOptions({shouldReservePosition: true})
+  return parser
 }
 
 function* markdownBlocks(node: Node): Iterable<Node> {
@@ -111,13 +116,15 @@ function* textNodes(node: Node): Iterable<Literal> {
     return
   }
 
-  if (isText(node)) {
-    yield node
-  } else if (isLink(node)) {
+  if (isLink(node)) {
     const text = innerText(node)
     if (text === node.url) {
       return // skip this node
     }
+  }
+
+  if (isText(node)) {
+    yield node
   } else if (isParent(node)) {
     for (const child of node.children) {
       yield* textNodes(child)

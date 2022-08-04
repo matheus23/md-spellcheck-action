@@ -39,6 +39,12 @@ test('handle broken-up-by-markup words', async () => {
   expect(errors).toEqual([])
 })
 
+test('handle broken-up-by-link words', async () => {
+  const api = await initialise()
+  const errors = await all(api.check(`Uses [Hunspell](http://hunspell.github.io/)'s code`))
+  expect(errors).toEqual([])
+})
+
 test('ignores urls', async () => {
   const api = await initialise()
   const errors = await all(
