@@ -9,8 +9,8 @@ import {loadModule} from 'hunspell-asm'
 import * as point from './point'
 import * as positions from './positions'
 
-export const WORD_REGEX =
-  /[\wABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýÿ'-]+/g
+// Captures any unicode letter with any number of (letter or "'" and letter or "-" and letter).
+export const WORD_REGEX = /\p{L}(?:\p{L}|'\p{L}|-\p{L})*/gu
 
 export const SKIP_TYPES = ['inlineCode', 'inlineMath']
 export const BLOCK_TYPES = [
