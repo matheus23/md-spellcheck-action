@@ -1,5 +1,5 @@
 import {expect, test} from '@jest/globals'
-import {initialise} from '../src/spellcheck'
+import {initialise, Misspelled} from '../src/spellcheck'
 
 test('detects misspelled words', async () => {
   const api = await initialise()
@@ -20,7 +20,7 @@ test('has error spans', async () => {
 
 test('can handle non-ascii', async () => {
   const api = await initialise()
-  const errors = []
+  const errors: Misspelled[] = []
   for await (const error of api.check("yoar's")) {
     errors.push(error)
   }
@@ -43,6 +43,31 @@ test('handle broken-up-by-link words', async () => {
   const api = await initialise()
   const errors = await all(
     api.check(`Uses [Hunspell](http://hunspell.github.io/)'s code`)
+  )
+  expect(errors).toEqual([])
+})
+
+test('correctly breaks up words', async () => {
+  const api = await initialise()
+  const errors = await all(
+    api.check(`> - CK: content key
+> - Yellow lines`)
+  )
+  expect(errors).toEqual([])
+})
+
+test('correctly recognizes apostrophes', async () => {
+  const api = await initialise()
+  const errors = await all(
+    api.check(`don't tell me this doesn't work`)
+  )
+  expect(errors).toEqual([])
+})
+
+test('correctly allows apostrophes as quotes', async () => {
+  const api = await initialise()
+  const errors = await all(
+    api.check(`it refers to a 'normalized function'`)
   )
   expect(errors).toEqual([])
 })
