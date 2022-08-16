@@ -392,7 +392,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.splitWords = exports.initialise = exports.BLOCK_TYPES = exports.SKIP_TYPES = exports.WORD_REGEX = void 0;
+exports.splitWords = exports.initialise = exports.INLINE_TYPES = exports.SKIP_TYPES = exports.WORD_REGEX = void 0;
 const parser_gfm_ex_1 = __nccwpck_require__(1977);
 const tokenizer_math_1 = __nccwpck_require__(6543);
 const tokenizer_inline_math_1 = __nccwpck_require__(5280);
@@ -400,16 +400,16 @@ const dictionary_en_1 = __importDefault(__nccwpck_require__(1278));
 const hunspell_asm_1 = __nccwpck_require__(4517);
 const point = __importStar(__nccwpck_require__(3767));
 const positions = __importStar(__nccwpck_require__(2325));
-exports.WORD_REGEX = /[\wABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýÿ'-]+/g;
+// Captures any unicode letter with any number of (letter or "'" and letter or "-" and letter).
+exports.WORD_REGEX = /\p{L}(?:\p{L}|'\p{L}|-\p{L})*/gu;
 exports.SKIP_TYPES = ['inlineCode', 'inlineMath'];
-exports.BLOCK_TYPES = [
-    'paragraph',
-    'blockquote',
-    'definition',
-    'footnote',
-    'footnoteDefinition',
-    'heading',
-    'table'
+exports.INLINE_TYPES = [
+    'text',
+    'emphasis',
+    'delete',
+    'strong',
+    'link',
+    'link-reference'
 ];
 function initialise() {
     return __awaiter(this, void 0, void 0, function* () {
@@ -438,15 +438,13 @@ function initialise() {
                 return __asyncGenerator(this, arguments, function* check_1() {
                     const parser = constructParser();
                     const parsed = parser.parse(contents);
-                    for (const block of markdownBlocks(parsed)) {
-                        for (const { word, position } of mergedWords(markdownTokens(block))) {
-                            if (!hunspell.spell(word)) {
-                                yield yield __await({
-                                    word,
-                                    position,
-                                    suggestions: hunspell.suggest(word)
-                                });
-                            }
+                    for (const { word, position } of mergeConsecutiveWordTokens(markdownTokens(parsed))) {
+                        if (!hunspell.spell(word)) {
+                            yield yield __await({
+                                word,
+                                position,
+                                suggestions: hunspell.suggest(word)
+                            });
                         }
                     }
                 });
@@ -462,37 +460,27 @@ function constructParser() {
     parser.setDefaultParseOptions({ shouldReservePosition: true });
     return parser;
 }
-function* markdownBlocks(node) {
-    if (exports.BLOCK_TYPES.includes(node.type)) {
-        yield node;
-    }
-    else if (isParent(node)) {
-        for (const child of node.children) {
-            yield* markdownBlocks(child);
-        }
-    }
-}
 function* markdownTokens(node) {
-    for (const literal of textNodes(node)) {
-        yield* literalPositionedTokens(literal);
-    }
-}
-function* textNodes(node) {
     if (exports.SKIP_TYPES.includes(node.type)) {
         return;
     }
     if (isLink(node)) {
         const text = innerText(node);
         if (text === node.url) {
-            return; // skip this node
+            return; // skip auto-generated link nodes like https://example.com
         }
     }
     if (isText(node)) {
-        yield node;
+        yield* literalPositionedTokens(node);
     }
     else if (isParent(node)) {
         for (const child of node.children) {
-            yield* textNodes(child);
+            const needsBreaks = !exports.INLINE_TYPES.includes(child.type);
+            if (needsBreaks)
+                yield { type: 'break' };
+            yield* markdownTokens(child);
+            if (needsBreaks)
+                yield { type: 'break' };
         }
     }
 }
@@ -538,7 +526,7 @@ function* wordsAndWhitespace(str) {
         };
     }
 }
-function* mergedWords(tokens) {
+function* mergeConsecutiveWordTokens(tokens) {
     let currentWord = null;
     for (const token of tokens) {
         // current word begins
@@ -556,7 +544,8 @@ function* mergedWords(tokens) {
             };
             // current word ended
         }
-        else if (currentWord != null && token.type === 'whitespace') {
+        else if (currentWord != null && token.type !== 'word') {
+            // yield a word
             yield currentWord;
             currentWord = null;
         }
