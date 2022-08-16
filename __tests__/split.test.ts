@@ -214,7 +214,7 @@ test('property: offset to line and column and back roundtrips', () => {
 function all<T>(gen: Iterable<T>): T[] {
   const ts: T[] = []
   for (const t of gen) {
-    ts.push(t as T)
+    ts.push(t)
   }
   return ts
 }

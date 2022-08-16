@@ -13,14 +13,13 @@ import * as positions from './positions'
 export const WORD_REGEX = /\p{L}(?:\p{L}|'\p{L}|-\p{L})*/gu
 
 export const SKIP_TYPES = ['inlineCode', 'inlineMath']
-export const BLOCK_TYPES = [
-  'paragraph',
-  'blockquote',
-  'definition',
-  'footnote',
-  'footnoteDefinition',
-  'heading',
-  'table'
+export const INLINE_TYPES = [
+  'text',
+  'emphasis',
+  'delete',
+  'strong',
+  'link',
+  'link-reference'
 ]
 
 export interface Word {
@@ -72,14 +71,14 @@ export async function initialise(): Promise<API> {
       const parser = constructParser()
       const parsed = parser.parse(contents)
 
-      for (const block of markdownBlocks(parsed)) {
-        for (const {word, position} of mergedWords(markdownTokens(block))) {
-          if (!hunspell.spell(word)) {
-            yield {
-              word,
-              position,
-              suggestions: hunspell.suggest(word)
-            }
+      for (const {word, position} of mergeConsecutiveWordTokens(
+        markdownTokens(parsed)
+      )) {
+        if (!hunspell.spell(word)) {
+          yield {
+            word,
+            position,
+            suggestions: hunspell.suggest(word)
           }
         }
       }
@@ -95,23 +94,7 @@ function constructParser(): GfmExParser {
   return parser
 }
 
-function* markdownBlocks(node: Node): Iterable<Node> {
-  if (BLOCK_TYPES.includes(node.type)) {
-    yield node
-  } else if (isParent(node)) {
-    for (const child of node.children) {
-      yield* markdownBlocks(child)
-    }
-  }
-}
-
-function* markdownTokens(node: Node): Iterable<PositionedToken> {
-  for (const literal of textNodes(node)) {
-    yield* literalPositionedTokens(literal)
-  }
-}
-
-function* textNodes(node: Node): Iterable<Literal> {
+function* markdownTokens(node: Node): Iterable<PositionedToken | BreakToken> {
   if (SKIP_TYPES.includes(node.type)) {
     return
   }
@@ -119,15 +102,21 @@ function* textNodes(node: Node): Iterable<Literal> {
   if (isLink(node)) {
     const text = innerText(node)
     if (text === node.url) {
-      return // skip this node
+      return // skip auto-generated link nodes like https://example.com
     }
   }
 
   if (isText(node)) {
-    yield node
+    yield* literalPositionedTokens(node)
   } else if (isParent(node)) {
     for (const child of node.children) {
-      yield* textNodes(child)
+      const needsBreaks = !INLINE_TYPES.includes(child.type)
+
+      if (needsBreaks) yield {type: 'break'}
+
+      yield* markdownTokens(child)
+
+      if (needsBreaks) yield {type: 'break'}
     }
   }
 }
@@ -168,6 +157,10 @@ interface PositionedToken extends Token {
   position: Position
 }
 
+interface BreakToken {
+  type: 'break'
+}
+
 function* wordsAndWhitespace(str: string): Iterable<Token> {
   let lastEnd = 0
   for (const match of str.matchAll(WORD_REGEX)) {
@@ -200,7 +193,9 @@ function* wordsAndWhitespace(str: string): Iterable<Token> {
   }
 }
 
-function* mergedWords(tokens: Iterable<PositionedToken>): Iterable<Word> {
+function* mergeConsecutiveWordTokens(
+  tokens: Iterable<PositionedToken | BreakToken>
+): Iterable<Word> {
   let currentWord: null | Word = null
 
   for (const token of tokens) {
@@ -217,7 +212,8 @@ function* mergedWords(tokens: Iterable<PositionedToken>): Iterable<Word> {
         position: positions.merge(currentWord.position, token.position)
       }
       // current word ended
-    } else if (currentWord != null && token.type === 'whitespace') {
+    } else if (currentWord != null && token.type !== 'word') {
+      // yield a word
       yield currentWord
       currentWord = null
     }

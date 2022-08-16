@@ -47,7 +47,7 @@ test('handle broken-up-by-link words', async () => {
   expect(errors).toEqual([])
 })
 
-test('correctly breaks up words', async () => {
+test('correctly doesnt merge tokens', async () => {
   const api = await initialise()
   const errors = await all(
     api.check(`> - CK: content key
@@ -58,17 +58,13 @@ test('correctly breaks up words', async () => {
 
 test('correctly recognizes apostrophes', async () => {
   const api = await initialise()
-  const errors = await all(
-    api.check(`don't tell me this doesn't work`)
-  )
+  const errors = await all(api.check(`don't tell me this doesn't work`))
   expect(errors).toEqual([])
 })
 
 test('correctly allows apostrophes as quotes', async () => {
   const api = await initialise()
-  const errors = await all(
-    api.check(`it refers to a 'normalized function'`)
-  )
+  const errors = await all(api.check(`it refers to a 'normalized function'`))
   expect(errors).toEqual([])
 })
 
@@ -101,7 +97,7 @@ test('ignores inline math', async () => {
 async function all<T>(gen: AsyncIterable<T>): Promise<T[]> {
   const ts: T[] = []
   for await (const t of gen) {
-    ts.push(t as T)
+    ts.push(t)
   }
   return ts
 }
