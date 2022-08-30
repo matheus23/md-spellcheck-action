@@ -37,7 +37,7 @@
     "hunspell-asm": "^4.0.2"
   },
   "devDependencies": {
-    "@typescript-eslint/parser": "^5.33.1",
+    "@typescript-eslint/parser": "^5.36.0",
     "@vercel/ncc": "^0.34.0",
     "eslint": "^8.22.0",
     "eslint-plugin-github": "^4.3.2",
