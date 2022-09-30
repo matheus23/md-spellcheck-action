@@ -27,7 +27,7 @@
   "author": "Philipp Krüger @matheus23, philipp.krueger1@gmail.com",
   "license": "MIT",
   "dependencies": {
-    "@actions/core": "^1.6.0",
+    "@actions/core": "^1.10.0",
     "@actions/glob": "^0.3.0",
     "@yozora/parser-gfm-ex": "^2.0.2-alpha.0",
     "@yozora/tokenizer-inline-math": "^2.0.2-alpha.0",
