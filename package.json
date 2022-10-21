@@ -33,7 +33,7 @@
     "@yozora/tokenizer-inline-math": "^2.0.2-alpha.0",
     "@yozora/tokenizer-math": "^2.0.2-alpha.0",
     "dictionary-en": "^3.2.0",
-    "fast-check": "^3.1.1",
+    "fast-check": "^3.3.0",
     "hunspell-asm": "^4.0.2"
   },
   "devDependencies": {
