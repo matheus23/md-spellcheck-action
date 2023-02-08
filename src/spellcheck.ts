@@ -3,7 +3,7 @@ import type {Literal, Node, Parent, Point, Position, Link} from '@yozora/ast'
 import {GfmExParser} from '@yozora/parser-gfm-ex'
 import {MathTokenizer} from '@yozora/tokenizer-math'
 import {InlineMathTokenizer} from '@yozora/tokenizer-inline-math'
-import dictionaryEn from 'dictionary-en'
+import dictionaryEn from 'dictionary-en-gb'
 import {loadModule} from 'hunspell-asm'
 
 import * as point from './point'
