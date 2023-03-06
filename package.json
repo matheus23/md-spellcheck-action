@@ -31,7 +31,7 @@
     "@actions/glob": "^0.3.0",
     "@yozora/parser-gfm-ex": "^2.0.2-alpha.0",
     "@yozora/tokenizer-inline-math": "^2.0.2-alpha.0",
-    "@yozora/tokenizer-math": "^2.0.2-alpha.0",
+    "@yozora/tokenizer-math": "^2.0.6",
     "dictionary-en": "^3.2.0",
     "fast-check": "^3.7.0",
     "hunspell-asm": "^4.0.2"
